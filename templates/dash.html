@@ -1,12 +1,14 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Emergency Dispatch Center</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha2d1-tJ6o5n/z09l55K3x2t30X6p/L6pWw9Kx9Kz9K9z/nQ==" crossorigin="" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha2d1-tJ6o5n/z09l55K3x2t30X6p/L6pWw9Kx9Kz9K9z/nQ==" crossorigin=""></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet CSS and JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -93,8 +95,7 @@
                     <p class="text-blue-300 text-sm">Baltimore Metro Area</p>
                 </div>
                 <div class="mt-4 sm:mt-0 flex flex-wrap justify-center sm:justify-end gap-2">
-                    <!-- The Home button link has been verified and is now an anchor tag with href="home.html" -->
-                    <a href="{{ url_for('home') }}" class="px-4 py-2 bg-blue-600 rounded-md font-medium hover:bg-blue-700 transition">
+                    <a href="{{ url_for('home') }}" class="px-4 py-2 bg-blue-600 rounded-md font-medium hover:bg-blue-700 transition" onclick="showDashboard('main')">
                         Home
                     </a>
                     <button class="px-4 py-2 bg-gray-700 rounded-md font-medium hover:bg-gray-600 transition" onclick="showDashboard('ems')">
@@ -106,9 +107,9 @@
                     <button class="px-4 py-2 bg-gray-700 rounded-md font-medium hover:bg-gray-600 transition" onclick="showDashboard('fire')">
                         🚒 Fire
                     </button>
-                    <button class="px-4 py-2 bg-gray-700 rounded-md font-medium hover:bg-gray-600 transition" onclick="showDashboard('map')">
+                    <a href="{{ url_for('map_page') }}" class="px-4 py-2 bg-gray-700 rounded-md font-medium hover:bg-gray-600 transition" onclick="showDashboard('map')">
                         📍 Map
-                    </button>
+                    </a>
                 </div>
             </div>
         </div>
@@ -153,9 +154,16 @@
     <!-- EMS Dashboard -->
     <div id="dashboard-ems" class="dashboard-container hidden max-w-4xl mx-auto p-4">
         <div class="flex flex-col sm:flex-row justify-between items-center mb-4">
-            <div class="text-center sm:text-left">
-                <h1 class="text-2xl sm:text-3xl font-bold text-white">🚑 EMS Dispatch</h1>
-                <p class="text-blue-300 text-sm">Hospital & Ambulance Status</p>
+            <div class="text-center sm:text-left flex items-center space-x-4">
+                <button class="text-gray-400 hover:text-white transition" onclick="goBack()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <div>
+                    <h1 class="text-2xl sm:text-3xl font-bold text-white">🚑 EMS Dispatch</h1>
+                    <p class="text-blue-300 text-sm">Hospital & Ambulance Status</p>
+                </div>
             </div>
             <div class="mt-2 sm:mt-0 text-center sm:text-right">
                 <div class="flex items-center justify-center sm:justify-end space-x-2 mb-1">
@@ -172,17 +180,20 @@
             </div>
         </div>
 
-        <!-- EMS Performance Gauges -->
-        <div class="mt-8 bg-gray-800 p-4 rounded-lg">
-            <h3 class="text-xl font-bold mb-4 text-white text-center">System Performance Metrics</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="bg-gray-700 p-4 rounded-lg text-center">
-                    <h4 class="text-lg font-semibold text-gray-300 mb-2">Average ER Wait Time</h4>
-                    <canvas id="erWaitTimeGauge" class="gauge-chart"></canvas>
+        <!-- EMS Performance Metrics -->
+        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-gray-800 p-6 rounded-xl text-center shadow-lg">
+                <h3 class="text-xl font-bold text-white mb-2">Avg. ER Wait Time</h3>
+                <div class="flex items-center justify-center space-x-2">
+                    <span id="erWaitTime" class="text-6xl font-extrabold text-blue-500">0</span>
+                    <span class="text-2xl text-gray-400">min</span>
                 </div>
-                <div class="bg-gray-700 p-4 rounded-lg text-center">
-                    <h4 class="text-lg font-semibold text-gray-300 mb-2">Overall Hospital Capacity</h4>
-                    <canvas id="hospitalCapacityGauge" class="gauge-chart"></canvas>
+            </div>
+            <div class="bg-gray-800 p-6 rounded-xl text-center shadow-lg">
+                <h3 class="text-xl font-bold text-white mb-2">Overall Hospital Capacity</h3>
+                <div class="flex items-center justify-center space-x-2">
+                    <span id="hospitalCapacity" class="text-6xl font-extrabold text-green-500">0</span>
+                    <span class="text-2xl text-gray-400">%</span>
                 </div>
             </div>
         </div>
@@ -190,7 +201,7 @@
         <div class="mb-6 mt-4">
             <h2 class="text-lg font-semibold text-white mb-3">Filter & Sort Hospitals</h2>
             <div class="flex flex-wrap gap-2">
-                <button class="filter-btn active px-4 py-2 rounded-full bg-gray-700 text-gray-300 text-sm font-medium" data-filter="all">
+                <button class="filter-btn active px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-medium" data-filter="all">
                     All Hospitals
                 </button>
                 <button class="filter-btn px-4 py-2 rounded-full bg-gray-700 text-gray-300 text-sm font-medium" data-filter="trauma">
@@ -218,9 +229,16 @@
     <!-- Police Dashboard -->
     <div id="dashboard-police" class="dashboard-container hidden max-w-4xl mx-auto p-4">
         <div class="flex flex-col sm:flex-row justify-between items-center mb-4">
-            <div class="text-center sm:text-left">
-                <h1 class="text-2xl sm:text-3xl font-bold text-white">🚓 Police Dispatch</h1>
-                <p class="text-blue-300 text-sm">Unit & Incident Status</p>
+            <div class="text-center sm:text-left flex items-center space-x-4">
+                <button class="text-gray-400 hover:text-white transition" onclick="goBack()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <div>
+                    <h1 class="text-2xl sm:text-3xl font-bold text-white">🚓 Police Dispatch</h1>
+                    <p class="text-blue-300 text-sm">Unit & Incident Status</p>
+                </div>
             </div>
             <div class="mt-2 sm:mt-0 text-center sm:text-right">
                 <div class="flex items-center justify-center sm:justify-end space-x-2 mb-1">
@@ -247,7 +265,9 @@
             </div>
             <div class="md:col-span-2 bg-gray-800 p-4 rounded-lg">
                 <h3 class="text-xl font-bold text-white mb-2 text-center">Incidents by Priority</h3>
-                <canvas id="incidentPriorityChart"></canvas>
+                <ul id="incident-priority-numbers" class="list-none space-y-2 p-4">
+                    <!-- Numbers will be rendered here -->
+                </ul>
             </div>
         </div>
 
@@ -263,9 +283,16 @@
     <!-- Fire Dashboard -->
     <div id="dashboard-fire" class="dashboard-container hidden max-w-4xl mx-auto p-4">
         <div class="flex flex-col sm:flex-row justify-between items-center mb-4">
-            <div class="text-center sm:text-left">
-                <h1 class="text-2xl sm:text-3xl font-bold text-white">🚒 Fire Dispatch</h1>
-                <p class="text-blue-300 text-sm">Station & Apparatus Status</p>
+            <div class="text-center sm:text-left flex items-center space-x-4">
+                <button class="text-gray-400 hover:text-white transition" onclick="goBack()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <div>
+                    <h1 class="text-2xl sm:text-3xl font-bold text-white">🚒 Fire Dispatch</h1>
+                    <p class="text-blue-300 text-sm">Station & Apparatus Status</p>
+                </div>
             </div>
             <div class="mt-2 sm:mt-0 text-center sm:text-right">
                 <div class="flex items-center justify-center sm:justify-end space-x-2 mb-1">
@@ -282,10 +309,12 @@
             </div>
         </div>
 
-        <!-- Fire Apparatus Chart -->
+        <!-- Fire Apparatus Numbers -->
         <div class="mt-8 bg-gray-800 p-4 rounded-lg">
             <h3 class="text-xl font-bold text-white mb-4 text-center">Apparatus Availability by Type</h3>
-            <canvas id="fireApparatusChart"></canvas>
+            <ul id="fire-apparatus-numbers" class="list-none space-y-2 p-4">
+                <!-- Numbers will be rendered here -->
+            </ul>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8" id="fire-stations-container">
@@ -294,7 +323,14 @@
 
     <!-- Map Dashboard -->
     <div id="dashboard-map" class="dashboard-container max-w-7xl mx-auto p-4 hidden">
-        <h2 class="text-3xl font-bold text-white text-center mb-4">Live GIS Map</h2>
+        <div class="flex items-center space-x-4 mb-4">
+            <button class="text-gray-400 hover:text-white transition" onclick="goBack()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+            </button>
+            <h2 class="text-3xl font-bold text-white text-center">Live GIS Map</h2>
+        </div>
         <div id="map"></div>
     </div>
 
@@ -327,6 +363,10 @@
         const policeIncidentsContainer = document.getElementById('police-incidents-container');
         const fireStationsContainer = document.getElementById('fire-stations-container');
         const hourlyIncidentCountDisplay = document.getElementById('hourly-incident-count');
+        const erWaitTimeDisplay = document.getElementById('erWaitTime');
+        const hospitalCapacityDisplay = document.getElementById('hospitalCapacity');
+        const incidentPriorityNumbers = document.getElementById('incident-priority-numbers');
+        const fireApparatusNumbers = document.getElementById('fire-apparatus-numbers');
 
         const filterButtons = document.querySelectorAll('#dashboard-ems .filter-btn');
         const modal = document.getElementById('modal');
@@ -339,15 +379,30 @@
             { id: 'jhh', name: 'Johns Hopkins Hospital', location: [39.2904, -76.6122], distance: 5.2, eta: 12, status: 'Accepting', waitTime: 25, erCapacity: 65, notes: 'Level I Trauma Center. All services operating normally.', specialties: { trauma: 'Level I - Available', stroke: 'Available', cardiac: 'Available', peds: 'Available', psych: 'Limited' } },
             { id: 'ummc', name: 'University of Maryland Medical Center', location: [39.2847, -76.6206], distance: 3.1, eta: 8, status: 'Capacity Alert', waitTime: 45, erCapacity: 85, notes: 'Adult Trauma Center. High ER volume, expect delays for non-critical cases.', specialties: { trauma: 'Level I - Available', stroke: 'Available', cardiac: 'Available', peds: 'Limited', psych: 'Unavailable' } },
             { id: 'medstar-franklin', name: 'MedStar Franklin Square Medical Center', location: [39.3179, -76.4950], distance: 10.5, eta: 20, status: 'Accepting', waitTime: 30, erCapacity: 75, notes: 'Designated Trauma and Stroke Center. Some cardiac services are limited due to high demand.', specialties: { trauma: 'Level II - Available', stroke: 'Available', cardiac: 'Limited', peds: 'Unavailable', psych: 'Available' } },
+            { id: 'mercy', name: 'Mercy Medical Center', location: [39.2905, -76.6092], distance: 4.5, eta: 15, status: 'Accepting', waitTime: 20, erCapacity: 50, notes: 'Specializes in women and infants care.', specialties: { trauma: 'Unavailable', stroke: 'Limited', cardiac: 'Available', peds: 'Available', psych: 'Limited' } },
         ];
 
-        let policeData = { units: [], incidents: [] };
-        let fireData = [];
+        let policeData = {
+            units: [
+                { id: 'p1', unitId: 'P-512', status: 'Available', location: [39.294, -76.61], locationName: 'Downtown Crossing' },
+                { id: 'p2', unitId: 'P-513', status: 'Available', location: [39.28, -76.62], locationName: 'Federal Hill' },
+                { id: 'p3', unitId: 'P-514', status: 'On Scene', location: [39.29, -76.615], locationName: 'Inner Harbor' },
+            ],
+            incidents: [
+                { id: 'i1', callType: 'Assault', location: [39.285, -76.618], locationName: '123 Main St', priority: 'High', unitsDispatched: ['P-514'] }
+            ]
+        };
+
+        let fireData = [
+            { id: 'f1', stationName: 'Station 1: Inner Harbor', status: 'In Service', location: [39.288, -76.605], apparatus: [{ type: 'Engine', status: 'Available' }, { type: 'Medic', status: 'Available' }] },
+            { id: 'f2', stationName: 'Station 2: Federal Hill', status: 'In Service', location: [39.27, -76.62], apparatus: [{ type: 'Engine', status: 'Available' }, { type: 'Ladder', status: 'On Call' }] },
+            { id: 'f3', stationName: 'Station 3: Downtown', status: 'In Service', location: [39.295, -76.61], apparatus: [{ type: 'Ladder', status: 'Available' }] }
+        ];
+
         let currentFilter = 'all';
         let incidentCount = 0;
         let lastIncidentCheckCount = 0;
         
-        // New variables for controlling the subtle data trend
         let erWaitTimeTrendDirection = 1; // 1 for increasing, -1 for decreasing
         let erWaitTimeTrendCounter = 0;
         const trendMax = 10; // trend will last for 10 updates (5 minutes)
@@ -365,112 +420,59 @@
         const policeIcon = new L.Icon({ iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
         const fireIcon = new L.Icon({ iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
         const incidentIcon = new L.Icon({ iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-black.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
-
-        // Chart.js initialization variables
-        let erWaitTimeGauge, hospitalCapacityGauge, incidentPriorityChart, fireApparatusChart;
-
-        function initializeCharts() {
-            const gaugeChartOptions = {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutoutPercentage: 75,
-                rotation: -0.5 * Math.PI,
-                circumference: 1.5 * Math.PI,
-                tooltips: { enabled: false },
-                plugins: { legend: { display: false }, datalabels: { display: false } }
-            };
-
-            erWaitTimeGauge = new Chart(document.getElementById('erWaitTimeGauge').getContext('2d'), {
-                type: 'doughnut',
-                data: {
-                    labels: ['Wait Time', 'Max Time'],
-                    datasets: [{
-                        data: [0, 60],
-                        backgroundColor: ['#3B82F6', '#1f2937'],
-                        borderWidth: 0
-                    }]
-                },
-                options: gaugeChartOptions
-            });
-
-            hospitalCapacityGauge = new Chart(document.getElementById('hospitalCapacityGauge').getContext('2d'), {
-                type: 'doughnut',
-                data: {
-                    labels: ['Capacity', 'Remaining'],
-                    datasets: [{
-                        data: [0, 100],
-                        backgroundColor: ['#2ECC71', '#1f2937'],
-                        borderWidth: 0
-                    }]
-                },
-                options: gaugeChartOptions
-            });
-
-            incidentPriorityChart = new Chart(document.getElementById('incidentPriorityChart').getContext('2d'), {
-                type: 'doughnut',
-                data: {
-                    labels: ['High', 'Medium', 'Low'],
-                    datasets: [{
-                        data: [0, 0, 0],
-                        backgroundColor: ['#E74C3C', '#F1C40F', '#2ECC71'],
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'right', labels: { color: 'white' } } }
-                }
-            });
-
-            fireApparatusChart = new Chart(document.getElementById('fireApparatusChart').getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: ['Engine', 'Ladder', 'Medic'],
-                    datasets: [{
-                        label: 'Available Apparatus',
-                        data: [0, 0, 0],
-                        backgroundColor: ['#3B82F6', '#2ECC71', '#F1C40F'],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: { beginAtZero: true, ticks: { color: 'white' } },
-                        x: { ticks: { color: 'white' } }
-                    },
-                    plugins: { legend: { display: false } }
-                }
-            });
-        }
         
-        function updateEmsCharts() {
-            const avgWaitTime = emsData.reduce((sum, h) => sum + h.waitTime, 0) / emsData.length;
-            const avgCapacity = emsData.reduce((sum, h) => sum + h.erCapacity, 0) / emsData.length;
+        function updateEmsMetrics() {
+            const avgWaitTime = Math.round(emsData.reduce((sum, h) => sum + h.waitTime, 0) / emsData.length);
+            const avgCapacity = Math.round(emsData.reduce((sum, h) => sum + h.erCapacity, 0) / emsData.length);
             
-            erWaitTimeGauge.data.datasets[0].data = [avgWaitTime, 60 - avgWaitTime];
-            erWaitTimeGauge.update();
-
-            hospitalCapacityGauge.data.datasets[0].data = [avgCapacity, 100 - avgCapacity];
-            hospitalCapacityGauge.update();
+            erWaitTimeDisplay.textContent = avgWaitTime;
+            hospitalCapacityDisplay.textContent = avgCapacity;
         }
 
-        function updatePoliceCharts() {
+        function updatePoliceNumbers() {
             const high = policeData.incidents.filter(i => i.priority === 'High').length;
             const medium = policeData.incidents.filter(i => i.priority === 'Medium').length;
             const low = policeData.incidents.filter(i => i.priority === 'Low').length;
-            incidentPriorityChart.data.datasets[0].data = [high, medium, low];
-            incidentPriorityChart.update();
+            
+            incidentPriorityNumbers.innerHTML = `
+                <li class="flex justify-between items-center text-sm">
+                    <span class="font-medium text-red-400">High Priority</span>
+                    <span class="font-bold text-red-400">${high}</span>
+                </li>
+                <li class="flex justify-between items-center text-sm">
+                    <span class="font-medium text-yellow-400">Medium Priority</span>
+                    <span class="font-bold text-yellow-400">${medium}</span>
+                </li>
+                <li class="flex justify-between items-center text-sm">
+                    <span class="font-medium text-green-400">Low Priority</span>
+                    <span class="font-bold text-green-400">${low}</span>
+                </li>
+            `;
         }
 
-        function updateFireCharts() {
+        function updateFireNumbers() {
             const engines = fireData.filter(s => s.apparatus.some(a => a.type === 'Engine' && a.status === 'Available')).length;
             const ladders = fireData.filter(s => s.apparatus.some(a => a.type === 'Ladder' && a.status === 'Available')).length;
             const medics = fireData.filter(s => s.apparatus.some(a => a.type === 'Medic' && a.status === 'Available')).length;
-            fireApparatusChart.data.datasets[0].data = [engines, ladders, medics];
-            fireApparatusChart.update();
+
+            fireApparatusNumbers.innerHTML = `
+                <li class="flex justify-between items-center text-sm">
+                    <span class="font-medium text-blue-400">Engines Available</span>
+                    <span class="font-bold text-blue-400">${engines}</span>
+                </li>
+                <li class="flex justify-between items-center text-sm">
+                    <span class="font-medium text-yellow-400">Ladders Available</span>
+                    <span class="font-bold text-yellow-400">${ladders}</span>
+                </li>
+                <li class="flex justify-between items-center text-sm">
+                    <span class="font-medium text-green-400">Medics Available</span>
+                    <span class="font-bold text-green-400">${medics}</span>
+                </li>
+            `;
+        }
+        
+        function goBack() {
+            showDashboard('main');
         }
 
         function showDashboard(dashboardId) {
@@ -552,13 +554,14 @@
                 <p class="text-gray-400 text-sm">Status: <span class="${statusColor} text-white px-2 py-0.5 rounded-full text-xs">${unit.status}</span></p>
                 <p class="text-gray-400 text-sm">Location: ${unit.locationName}</p>
             `;
+            card.onclick = () => showModal(unit, 'police-unit');
             return card;
         }
 
         function renderPoliceIncidentCard(incident) {
             const priorityColor = incident.priority === 'High' ? 'bg-red-600' : (incident.priority === 'Medium' ? 'bg-yellow-600' : 'bg-green-600');
             const card = document.createElement('div');
-            card.classList.add('card', 'bg-gray-800', 'p-6', 'rounded-lg', 'shadow-md', 'border-l-4', 'border-red-500');
+            card.classList.add('card', 'bg-gray-800', 'p-6', 'rounded-lg', 'shadow-md', 'border-l-4', `border-${incident.priority === 'High' ? 'red' : (incident.priority === 'Medium' ? 'yellow' : 'green')}-500`);
             card.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
                     <h4 class="text-xl font-semibold">${incident.callType}</h4>
@@ -567,6 +570,7 @@
                 <p class="text-gray-400">Location: ${incident.locationName}</p>
                 <p class="text-gray-400 text-sm mt-1">Units Dispatched: ${incident.unitsDispatched.join(', ')}</p>
             `;
+            card.onclick = () => showModal(incident, 'police-incident');
             return card;
         }
 
@@ -583,11 +587,13 @@
                     </ul>
                 </div>
             `;
+            card.onclick = () => showModal(station, 'fire-station');
             return card;
         }
 
         // Dashboard Rendering Functions
         function renderEmsDashboard() {
+            emsContainer.innerHTML = ''; // Clear the container
             let filteredCards = [...emsData];
             if (currentFilter !== 'all') {
                 filteredCards = filteredCards.filter(hospital => 
@@ -599,215 +605,113 @@
                 const aStatus = statusOrder[a.status] || 5;
                 const bStatus = statusOrder[b.status] || 5;
                 if (aStatus !== bStatus) return aStatus - bStatus;
-                return a.waitTime - b.waitTime;
+                return a.distance - b.distance;
             });
-            emsContainer.innerHTML = '';
-            filteredCards.forEach(hospital => {
-                emsContainer.appendChild(renderHospitalCard(hospital));
-            });
+            filteredCards.forEach(hospital => emsContainer.appendChild(renderHospitalCard(hospital)));
         }
 
         function renderPoliceDashboard() {
             policeUnitsContainer.innerHTML = '';
-            policeData.units.forEach(unit => {
-                policeUnitsContainer.appendChild(renderPoliceUnitCard(unit));
-            });
+            policeData.units.forEach(unit => policeUnitsContainer.appendChild(renderPoliceUnitCard(unit)));
+
             policeIncidentsContainer.innerHTML = '';
-            policeData.incidents.forEach(incident => {
-                policeIncidentsContainer.appendChild(renderPoliceIncidentCard(incident));
-            });
-        }
-
-        function renderFireDashboard() {
-            fireStationsContainer.innerHTML = '';
-            fireData.forEach(station => {
-                fireStationsContainer.appendChild(renderFireStationCard(station));
-            });
-        }
-
-        // Map rendering
-        function updateMap() {
-            unitMarkers.clearLayers();
-            incidentMarkers.clearLayers();
-            
-            policeData.units.forEach(unit => {
-                const marker = L.marker(unit.location, { icon: policeIcon }).addTo(unitMarkers);
-                marker.bindPopup(`<b>Unit: ${unit.unitId}</b><br>Status: ${unit.status}<br>Location: ${unit.locationName}`);
-            });
-            
-            fireData.forEach(station => {
-                station.apparatus.forEach(app => {
-                    if (app.status === 'Available') {
-                        const marker = L.marker(station.location, { icon: fireIcon }).addTo(unitMarkers);
-                        marker.bindPopup(`<b>${app.type}</b><br>Station: ${station.stationName}<br>Status: ${app.status}`);
-                    }
-                });
-            });
-
-            emsData.forEach(hospital => {
-                const marker = L.marker(hospital.location, { icon: emsIcon }).addTo(unitMarkers);
-                marker.bindPopup(`<b>Hospital: ${hospital.name}</b><br>Status: ${hospital.status}<br>Wait Time: ${hospital.waitTime} min`);
-            });
-
-            policeData.incidents.forEach(incident => {
-                const marker = L.marker(incident.location, { icon: incidentIcon }).addTo(incidentMarkers);
-                marker.bindPopup(`<b>Incident: ${incident.callType}</b><br>Priority: ${incident.priority}<br>Location: ${incident.locationName}`);
-            });
-        }
-
-
-        // API Simulation Functions (to be replaced with actual API calls)
-        async function fetchEmsData() {
-            // Check if it's time to change the trend direction
-            if (erWaitTimeTrendCounter >= trendMax) {
-                erWaitTimeTrendDirection *= -1;
-                erWaitTimeTrendCounter = 0;
-            }
-            erWaitTimeTrendCounter++;
-
-            // Update the data based on the trend
-            const updatedData = emsData.map(hospital => {
-                // Apply a subtle, trending change
-                const waitTimeChange = erWaitTimeTrendDirection * (Math.random() * 1.5);
-                const capacityChange = -erWaitTimeTrendDirection * (Math.random() * 1.5);
-                
-                const newWaitTime = Math.max(10, Math.min(60, hospital.waitTime + waitTimeChange));
-                const newCapacity = Math.max(50, Math.min(100, hospital.erCapacity + capacityChange));
-                
-                return {
-                    ...hospital,
-                    waitTime: parseFloat(newWaitTime.toFixed(1)),
-                    erCapacity: parseFloat(newCapacity.toFixed(1))
-                };
-            });
-            return { hospitals: updatedData, lastUpdated: new Date().toLocaleTimeString() };
-        }
-
-        async function fetchPoliceData() {
-            const mockUnits = [
-                { unitId: 'P-101', status: 'Available', location: [39.2891, -76.6094], locationName: 'Downtown Baltimore' },
-                { unitId: 'P-102', status: 'On Scene', location: [39.2748, -76.6094], locationName: 'Federal Hill' },
-                { unitId: 'P-103', status: 'Available', location: [39.2880, -76.6015], locationName: 'Inner Harbor' },
-                { unitId: 'P-104', status: 'On Patrol', location: [39.2818, -76.5926], locationName: 'Fells Point' },
-                { unitId: 'P-105', status: 'Available', location: [39.2982, -76.6111], locationName: 'Mount Vernon' },
-                { unitId: 'P-106', status: 'On Patrol', location: [39.2846, -76.5779], locationName: 'Canton' }
-            ];
-            const mockIncidents = [
-                { incidentId: '2025-001A', callType: 'Motor Vehicle Accident', priority: 'High', location: [39.2892, -76.6212], locationName: 'Lombard St & Eutaw St', unitsDispatched: ['P-102'] },
-                { incidentId: '2025-002B', callType: 'Assault Report', priority: 'Medium', location: [39.2789, -76.6062], locationName: 'Light St & Key Hwy', unitsDispatched: ['P-104'] }
-            ];
-            return { units: mockUnits, incidents: mockIncidents, lastUpdated: new Date().toLocaleTimeString() };
-        }
-
-        async function fetchFireData() {
-            const mockStations = [
-                { stationId: 'FS-1', stationName: 'Baltimore Fire Station 1', location: [39.2878, -76.6046], status: 'Normal', apparatus: [{ type: 'Engine 1', status: 'Available' }, { type: 'Ladder 1', status: 'Available' }, { type: 'Medic 1', status: 'Available' }] },
-                { stationId: 'FS-2', stationName: 'Baltimore Fire Station 2', location: [39.2941, -76.6115], status: 'Active Call', apparatus: [{ type: 'Engine 2', status: 'Dispatched' }, { type: 'Ladder 2', status: 'Available' }, { type: 'Medic 2', status: 'Dispatched' }] },
-                { stationId: 'FS-3', stationName: 'Baltimore Fire Station 3', location: [39.2829, -76.5779], status: 'Normal', apparatus: [{ type: 'Engine 3', status: 'Available' }, { type: 'Ladder 3', status: 'Available' }, { type: 'Medic 3', status: 'Available' }] }
-            ];
-            return { stations: mockStations, lastUpdated: new Date().toLocaleTimeString() };
-        }
-
-        async function updateDashboardData() {
-            try {
-                const emsResponse = await fetchEmsData();
-                emsData = emsResponse.hospitals;
-                document.getElementById('ems-last-updated').textContent = `Last updated: ${emsResponse.lastUpdated}`;
-                renderEmsDashboard();
-                updateEmsCharts();
-                
-                const policeResponse = await fetchPoliceData();
-                policeData = policeResponse;
-                document.getElementById('police-last-updated').textContent = `Last updated: ${policeResponse.lastUpdated}`;
-                renderPoliceDashboard();
-                trackIncidents();
-                updatePoliceCharts();
-
-                const fireResponse = await fetchFireData();
-                fireData = fireResponse.stations;
-                document.getElementById('fire-last-updated').textContent = `Last updated: ${fireResponse.lastUpdated}`;
-                renderFireDashboard();
-                updateFireCharts();
-                
-                updateMap();
-
-            } catch (error) {
-                console.error('Failed to fetch data:', error);
-                document.getElementById('ems-last-updated').textContent = 'Last updated: Data fetch failed';
-                document.getElementById('police-last-updated').textContent = 'Last updated: Data fetch failed';
-                document.getElementById('fire-last-updated').textContent = 'Last updated: Data fetch failed';
-            }
+            policeData.incidents.forEach(incident => policeIncidentsContainer.appendChild(renderPoliceIncidentCard(incident)));
         }
         
-        function trackIncidents() {
-            const currentIncidentCount = policeData.incidents.length;
-            if (currentIncidentCount > lastIncidentCheckCount) {
-                incidentCount += (currentIncidentCount - lastIncidentCheckCount);
-                hourlyIncidentCountDisplay.textContent = incidentCount;
-            }
-            lastIncidentCheckCount = currentIncidentCount;
+        function renderFireDashboard() {
+            fireStationsContainer.innerHTML = '';
+            fireData.forEach(station => fireStationsContainer.appendChild(renderFireStationCard(station)));
         }
 
-        function resetHourlyCount() {
-            incidentCount = 0;
-            hourlyIncidentCountDisplay.textContent = incidentCount;
-            lastIncidentCheckCount = 0;
-            console.log('Hourly incident count has been reset.');
+        function renderMap() {
+            unitMarkers.clearLayers();
+            incidentMarkers.clearLayers();
+
+            policeData.units.forEach(unit => {
+                const marker = L.marker(unit.location, { icon: policeIcon }).addTo(unitMarkers);
+                marker.bindPopup(`<b>${unit.unitId}</b><br>Status: ${unit.status}<br>Location: ${unit.locationName}`);
+            });
+            
+            policeData.incidents.forEach(incident => {
+                const marker = L.marker(incident.location, { icon: incidentIcon }).addTo(incidentMarkers);
+                marker.bindPopup(`<b>${incident.callType}</b><br>Priority: ${incident.priority}<br>Location: ${incident.locationName}`);
+            });
+            
+            emsData.forEach(hospital => {
+                const marker = L.marker(hospital.location, { icon: emsIcon }).addTo(unitMarkers);
+                marker.bindPopup(`<b>${hospital.name}</b><br>Status: ${hospital.status}<br>Wait Time: ${hospital.waitTime} min`);
+            });
+            
+            fireData.forEach(station => {
+                const marker = L.marker(station.location, { icon: fireIcon }).addTo(unitMarkers);
+                marker.bindPopup(`<b>${station.stationName}</b><br>Status: ${station.status}`);
+            });
         }
 
-        // Modal Logic
-        function showModal(data, service) {
-            modalTitle.textContent = data.name || data.callType || data.stationName || '';
+        function showModal(data, type) {
+            modal.classList.remove('hidden');
             let content = '';
-            if (service === 'ems') {
-                const specialtyDetails = Object.entries(data.specialties).map(([name, status]) => {
-                    return `<li>${name.charAt(0).toUpperCase() + name.slice(1)}: <span class="text-white">${status}</span></li>`;
-                }).join('');
-                content = `
-                    <p class="text-gray-300 mb-4">${data.notes}</p>
-                    <div class="space-y-2">
-                        <p><strong>Status:</strong> <span class="text-white">${data.status}</span></p>
-                        <p><strong>Wait Time:</strong> <span class="text-white">${data.waitTime} min</span></p>
-                        <p><strong>ER Capacity:</strong> <span class="text-white">${data.erCapacity}%</span></p>
-                        <p><strong>Distance:</strong> <span class="text-white">${data.distance} miles</span></p>
-                        <p><strong>ETA:</strong> <span class="text-white">${data.eta} min</span></p>
-                    </div>
-                    <div class="mt-4">
-                        <h4 class="font-semibold text-lg text-white mb-2">Specialty Status:</h4>
-                        <ul class="space-y-1 text-gray-400">
-                            ${specialtyDetails}
+            switch(type) {
+                case 'ems':
+                    modalTitle.textContent = data.name;
+                    const specialtyDetails = Object.entries(data.specialties).map(([name, status]) => `<li><span class="font-bold">${name.charAt(0).toUpperCase() + name.slice(1)}:</span> ${status}</li>`).join('');
+                    content = `
+                        <p class="text-gray-400 mb-2">${data.notes}</p>
+                        <ul class="space-y-1">
+                            <li><span class="font-semibold text-white">Status:</span> ${data.status}</li>
+                            <li><span class="font-semibold text-white">ER Wait Time:</span> ${data.waitTime} min</li>
+                            <li><span class="font-semibold text-white">ER Capacity:</span> ${data.erCapacity}%</li>
+                            <li><span class="font-semibold text-white">Distance:</span> ${data.distance} miles</li>
                         </ul>
-                    </div>
-                `;
-            } else if (service === 'police') {
-                content = `
-                    <p class="text-gray-300 mb-4">Location: ${data.locationName}</p>
-                    <p><strong>Call Type:</strong> <span class="text-white">${data.callType}</span></p>
-                    <p><strong>Priority:</strong> <span class="text-white">${data.priority}</span></p>
-                    <p><strong>Units Dispatched:</strong> <span class="text-white">${data.unitsDispatched.join(', ')}</span></p>
-                `;
-            } else if (service === 'fire') {
-                const apparatusList = data.apparatus.map(app => `<li>${app.type} (${app.status})</li>`).join('');
-                content = `
-                    <p><strong>Status:</strong> <span class="text-white">${data.status}</span></p>
-                    <div class="mt-4">
-                        <h4 class="font-semibold text-lg text-white mb-2">Apparatus:</h4>
-                        <ul class="list-disc list-inside text-gray-400">
-                            ${apparatusList}
+                        <h4 class="font-semibold text-white mt-4 mb-2">Specialty Services:</h4>
+                        <ul class="list-disc list-inside text-gray-400">${specialtyDetails}</ul>
+                    `;
+                    break;
+                case 'police-unit':
+                    modalTitle.textContent = data.unitId;
+                    content = `
+                        <p class="text-gray-400 mb-2">Unit Status and Location Details</p>
+                        <ul class="space-y-1">
+                            <li><span class="font-semibold text-white">Status:</span> ${data.status}</li>
+                            <li><span class="font-semibold text-white">Last Known Location:</span> ${data.locationName}</li>
+                            <li><span class="font-semibold text-white">Coordinates:</span> [${data.location[0]}, ${data.location[1]}]</li>
                         </ul>
-                    </div>
-                `;
+                    `;
+                    break;
+                case 'police-incident':
+                    modalTitle.textContent = `Incident: ${data.callType}`;
+                    content = `
+                        <p class="text-gray-400 mb-2">Incident Details</p>
+                        <ul class="space-y-1">
+                            <li><span class="font-semibold text-white">Priority:</span> ${data.priority}</li>
+                            <li><span class="font-semibold text-white">Location:</span> ${data.locationName}</li>
+                            <li><span class="font-semibold text-white">Units Dispatched:</span> ${data.unitsDispatched.join(', ')}</li>
+                        </ul>
+                    `;
+                    break;
+                case 'fire-station':
+                    modalTitle.textContent = data.stationName;
+                    const apparatusList = data.apparatus.map(app => `<li>${app.type} - ${app.status}</li>`).join('');
+                    content = `
+                        <p class="text-gray-400 mb-2">Apparatus and Station Status</p>
+                        <ul class="space-y-1">
+                            <li><span class="font-semibold text-white">Status:</span> ${data.status}</li>
+                        </ul>
+                        <h4 class="font-semibold text-white mt-4 mb-2">Apparatus:</h4>
+                        <ul class="list-disc list-inside text-gray-400">${apparatusList}</ul>
+                    `;
+                    break;
             }
             modalContent.innerHTML = content;
-            modal.classList.remove('hidden');
         }
 
         closeModalBtn.addEventListener('click', () => {
             modal.classList.add('hidden');
         });
 
+        // Close modal when clicking outside
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
+            if (e.target.id === 'modal') {
                 modal.classList.add('hidden');
             }
         });
@@ -815,31 +719,87 @@
         // Event listeners for filter buttons
         filterButtons.forEach(button => {
             button.addEventListener('click', () => {
-                filterButtons.forEach(btn => {
-                    btn.classList.remove('active', 'bg-blue-600', 'text-white');
-                    btn.classList.add('bg-gray-700', 'text-gray-300');
-                });
+                filterButtons.forEach(btn => btn.classList.remove('active', 'bg-blue-600', 'text-white'));
+                filterButtons.forEach(btn => btn.classList.add('bg-gray-700', 'text-gray-300'));
                 button.classList.add('active', 'bg-blue-600', 'text-white');
                 button.classList.remove('bg-gray-700', 'text-gray-300');
-                currentFilter = button.dataset.filter;
+                currentFilter = button.getAttribute('data-filter');
                 renderEmsDashboard();
             });
         });
 
-        // Initial setup
-        initializeCharts();
-        showDashboard('main');
-        updateDashboardData();
-        setInterval(updateDashboardData, 30000); // Update every 30 seconds
+        function updateData() {
+            // Trend ER wait times and capacity
+            erWaitTimeTrendCounter++;
+            if (erWaitTimeTrendCounter >= trendMax) {
+                erWaitTimeTrendDirection *= -1;
+                erWaitTimeTrendCounter = 0;
+            }
+            emsData.forEach(hospital => {
+                hospital.waitTime += erWaitTimeTrendDirection * Math.floor(Math.random() * 3);
+                hospital.waitTime = Math.max(0, hospital.waitTime);
+                hospital.erCapacity += erWaitTimeTrendDirection * Math.floor(Math.random() * 3);
+                hospital.erCapacity = Math.min(100, Math.max(0, hospital.erCapacity));
+            });
+            // Randomly change a hospital status
+            const randomHospital = emsData[Math.floor(Math.random() * emsData.length)];
+            const statuses = ['Accepting', 'Capacity Alert', 'Diversion'];
+            if (Math.random() < 0.2) { // 20% chance to change status
+                randomHospital.status = statuses[Math.floor(Math.random() * statuses.length)];
+            }
+            
+            // Randomly update a police unit status
+            const randomPoliceUnit = policeData.units[Math.floor(Math.random() * policeData.units.length)];
+            const policeStatuses = ['Available', 'On Scene', 'Dispatched'];
+            randomPoliceUnit.status = policeStatuses[Math.floor(Math.random() * policeStatuses.length)];
+            
+            // Randomly update a fire apparatus status
+            const randomFireStation = fireData[Math.floor(Math.random() * fireData.length)];
+            const randomApparatus = randomFireStation.apparatus[Math.floor(Math.random() * randomFireStation.apparatus.length)];
+            const fireStatuses = ['Available', 'On Call', 'Out of Service'];
+            randomApparatus.status = fireStatuses[Math.floor(Math.random() * fireStatuses.length)];
 
-        const now = new Date();
-        const startOfNextHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0, 0);
-        const timeUntilNextHour = startOfNextHour.getTime() - now.getTime();
+            // Randomly add or clear an incident
+            if (Math.random() < 0.1) { // 10% chance to add an incident
+                const callTypes = ['Assault', 'Burglary', 'Traffic Stop', 'Noise Complaint', 'Structure Fire', 'Medical Emergency'];
+                const priorities = ['High', 'Medium', 'Low'];
+                const newIncident = {
+                    id: 'i' + (policeData.incidents.length + 1),
+                    callType: callTypes[Math.floor(Math.random() * callTypes.length)],
+                    location: [39.2904 + (Math.random() - 0.5) * 0.02, -76.6122 + (Math.random() - 0.5) * 0.02],
+                    locationName: 'New Incident Location',
+                    priority: priorities[Math.floor(Math.random() * priorities.length)],
+                    unitsDispatched: []
+                };
+                policeData.incidents.push(newIncident);
+            }
+            if (Math.random() < 0.05 && policeData.incidents.length > 0) { // 5% chance to clear an incident
+                policeData.incidents.splice(Math.floor(Math.random() * policeData.incidents.length), 1);
+            }
+            
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
 
-        setTimeout(() => {
-            resetHourlyCount();
-            setInterval(resetHourlyCount, 60 * 60 * 1000);
-        }, timeUntilNextHour);
+            // Check if incident count has changed for hourly counter
+            if (policeData.incidents.length !== lastIncidentCheckCount) {
+                incidentCount = policeData.incidents.length;
+                hourlyIncidentCountDisplay.textContent = incidentCount;
+                lastIncidentCheckCount = incidentCount;
+            }
+
+            // Update dashboards and metrics
+            updateEmsMetrics();
+            updatePoliceNumbers();
+            updateFireNumbers();
+            renderEmsDashboard();
+            renderPoliceDashboard();
+            renderFireDashboard();
+            renderMap();
+        }
+
+        // Initial render and data updates
+        updateData();
+        setInterval(updateData, 3000); // Update data every 3 seconds
 
     </script>
 </body>
