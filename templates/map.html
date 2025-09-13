@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Baltimore 3D Map with Traffic</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+  // 🔑 Replace with your Mapbox token
+  mapboxgl.accessToken = 'pk.eyJ1IjoidGhlZmxhc2gxMDAyIiwiYSI6ImNtZmYwMjZuODBkN2UybXExaTM2ZGl0d3cifQ.j520k_qlveWfMAYCCu5IqQ';
+
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/streets-v12', // base map
+    center: [-76.6122, 39.2904], // Baltimore coords
+    zoom: 13,
+    pitch: 60,
+    bearing: -17.6
+  });
+
+  // Add zoom/nav controls
+  map.addControl(new mapboxgl.NavigationControl());
+
+  map.on('load', () => {
+    // --- 3D BUILDINGS ---
+    map.addLayer({
+      id: '3d-buildings',
+      source: 'composite',
+      'source-layer': 'building',
+      filter: ['==', 'extrude', 'true'],
+      type: 'fill-extrusion',
+      minzoom: 15,
+      paint: {
+        'fill-extrusion-color': '#aaa',
+        'fill-extrusion-height': ['get', 'height'],
+        'fill-extrusion-base': ['get', 'min_height'],
+        'fill-extrusion-opacity': 0.6
+      }
+    });
+
+    // --- LIVE TRAFFIC ---
+    map.addLayer({
+      id: 'traffic',
+      type: 'line',
+      source: {
+        type: 'vector',
+        url: 'mapbox://mapbox.mapbox-traffic-v1'
+      },
+      'source-layer': 'traffic',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': [
+          'match',
+          ['get', 'congestion'],
+          'low', '#28a745',       // green
+          'moderate', '#ffc107',  // yellow
+          'heavy', '#fd7e14',     // orange
+          'severe', '#dc3545',    // red
+          '#999'                  // fallback grey
+        ],
+        'line-width': 3
+      }
+    });
+  });
+</script>
+</body>
+</html>
