@@ -2,164 +2,384 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Baltimore Crime Heatmap + Traffic</title>
+  <title>Baltimore Crime Heatmap + Traffic + Hospitals + Hotspots</title>
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <style>
     body, html { margin:0; padding:0; height:100%; }
     #map { position:absolute; top:0; bottom:0; width:100%; }
-    .mapboxgl-popup {
-      max-width: 300px;
-      font: 14px/20px "Helvetica Neue", Arial, Helvetica, sans-serif;
+    .mapboxgl-popup { max-width: 300px; font: 14px/20px "Helvetica Neue", Arial, Helvetica, sans-serif; }
+    .controls {
+      position:absolute; left:10px; top:10px; background:white; padding:8px; border-radius:6px;
+      box-shadow:0 2px 6px rgba(0,0,0,0.2); z-index: 2;
     }
-    .controls { 
-      position:absolute; 
-      left:10px; 
-      top:10px; 
-      background:white; 
-      padding:8px; 
-      border-radius:6px; 
-      box-shadow:0 2px 6px rgba(0,0,0,0.2);
-      z-index: 1;
-    }
-    .controls button {
-      display:block;
-      margin-bottom:6px;
+    .controls button { display:block; margin-bottom:6px; width:170px; padding:6px; }
+    .hospital-marker {
+      width: 44px; height: 44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+      font-size: 22px; font-weight: 700; color: #fff; border: 2px solid #fff; pointer-events: auto;
     }
   </style>
 </head>
 <body>
-
 <div id="map"></div>
 
 <div class="controls">
   <button id="toggleCrimeBtn">Toggle Crime Map</button>
   <button id="toggleTrafficBtn">Toggle Traffic</button>
+  <button id="toggleHospitalsBtn">Toggle Hospitals</button>
+  <button id="toggleHotspotsBtn">Toggle Hotspots</button>
 </div>
 
 <script>
-mapboxgl.accessToken = "pk.eyJ1IjoidGhlZmxhc2gxMDAyIiwiYSI6ImNtZmYwMjZuODBkN2UybXExaTM2ZGl0d3cifQ.j520k_qlveWfMAYCCu5IqQ"; // replace with your token
+mapboxgl.accessToken = "pk.eyJ1IjoidGhlZmxhc2gxMDAyIiwiYSI6ImNtZmYwMjZuODBkN2UybXExaTM2ZGl0d3cifQ.j520k_qlveWfMAYCCu5IqQ";
 
 const map = new mapboxgl.Map({
   container: "map",
   style: "mapbox://styles/mapbox/streets-v12",
-  center: [-76.6122, 39.2904], // Baltimore
+  center: [-76.6122, 39.2904],
   zoom: 11,
   pitch: 45,
-  bearing: -17.6
+  bearing: -17.6,
+  antialias: true
 });
 
-map.on("load", () => {
-  // Add 3D buildings
-  map.addLayer({
-    id: "3d-buildings",
-    source: "composite",
-    "source-layer": "building",
-    filter: ["==", "extrude", "true"],
-    type: "fill-extrusion",
-    minzoom: 15,
-    paint: {
-      "fill-extrusion-color": "#aaa",
-      "fill-extrusion-height": ["get", "height"],
-      "fill-extrusion-base": ["get", "min_height"],
-      "fill-extrusion-opacity": 0.6
-    }
-  });
+let hospitalMarkers = [];
+let hospitalsVisible = true;
+let hotspotsAdded = false;
+let hotspotsVisible = false;
 
-  // Load crime neighborhood data
+map.on("load", () => {
+  try {
+    map.addLayer({
+      id: "3d-buildings",
+      source: "composite",
+      "source-layer": "building",
+      filter: ["==", "extrude", "true"],
+      type: "fill-extrusion",
+      minzoom: 15,
+      paint: {
+        "fill-extrusion-color": "#aaa",
+        "fill-extrusion-height": ["get", "height"],
+        "fill-extrusion-base": ["get", "min_height"],
+        "fill-extrusion-opacity": 0.6
+      }
+    });
+  } catch (e) {
+    console.warn("3D buildings not added:", e);
+  }
+ 
+  // ADDED: Custom 3D layer for ambulance model
+  const ambulanceLayer = {
+    id: "ambulance-3d-model",
+    type: "custom",
+    renderingMode: "3d",
+    onAdd: function (map, gl) {
+      this.map = map;
+      this.camera = new THREE.Camera();
+      this.scene = new THREE.Scene();
+      this.ambulance = null;
+ 
+      // Use GLTFLoader to load your model
+      const loader = new THREE.GLTFLoader();
+      loader.load(
+        "/static/ambulance.glb",
+        (gltf) => {
+          this.ambulance = gltf.scene;
+ 
+          // Set the model's position on the map
+          const modelOrigin = [-76.602, 39.290]; // Example location near a hotspot
+          const modelAltitude = 0;
+          const modelRotate = [Math.PI / 2, 0, 0];
+ 
+          const modelAsMercatorCoordinate = mapboxgl.MercatorCoordinate.fromLngLat(
+            modelOrigin,
+            modelAltitude
+          );
+ 
+          const modelTransform = {
+            translateX: modelAsMercatorCoordinate.x,
+            translateY: modelAsMercatorCoordinate.y,
+            translateZ: modelAsMercatorCoordinate.z,
+            rotateX: modelRotate[0],
+            rotateY: modelRotate[1],
+            rotateZ: modelRotate[2],
+            scale: modelAsMercatorCoordinate.meterInMercatorCoordinateUnits()
+          };
+ 
+          const customScale = 30; // Adjust this value to change the size
+          this.ambulance.scale.set(
+            modelTransform.scale * customScale,
+            modelTransform.scale * customScale,
+            modelTransform.scale * customScale
+          );
+          this.ambulance.rotation.x = modelTransform.rotateX;
+          this.ambulance.rotation.y = modelTransform.rotateY;
+          this.ambulance.rotation.z = modelTransform.rotateZ;
+          this.ambulance.position.x = modelTransform.translateX;
+          this.ambulance.position.y = modelTransform.translateY;
+          this.ambulance.position.z = modelTransform.translateZ;
+ 
+          this.scene.add(this.ambulance);
+          // ADDED: Create and add lights to the scene
+          const ambientLight = new THREE.AmbientLight(0xffffff, 1); // soft white light
+          this.scene.add(ambientLight);
+
+          const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+          directionalLight.position.set(0, -70, 100).normalize();
+          this.scene.add(directionalLight);
+          this.map.triggerRepaint();
+        },
+        (xhr) => {
+          // Optional: Progress callback
+        },
+        (error) => {
+          console.error("An error happened while loading the 3D model:", error);
+        }
+      );
+ 
+      this.renderer = new THREE.WebGLRenderer({
+        canvas: map.getCanvas(),
+        context: gl,
+        antialias: true
+      });
+      this.renderer.autoClear = false;
+    },
+    render: function (gl, matrix) {
+      if (!this.ambulance) {
+        return;
+      }
+ 
+      const m = new THREE.Matrix4().fromArray(matrix);
+      this.camera.projectionMatrix.copy(m);
+ 
+      this.renderer.state.reset();
+      this.renderer.render(this.scene, this.camera);
+      this.map.triggerRepaint();
+    },
+    onRemove: function () {
+      this.renderer.dispose();
+    }
+  };
+ 
+  // Add the custom layer to the map
+  map.addLayer(ambulanceLayer, "waterway-label");
+
   fetch("/api/neighborhoods")
     .then(res => res.json())
     .then(data => {
-      map.addSource("neighborhoods", { type: "geojson", data });
+      if (!map.getSource("neighborhoods")) {
+        map.addSource("neighborhoods", { type: "geojson", data });
+      } else {
+        map.getSource("neighborhoods").setData(data);
+      }
 
-      // Crime heatmap
-      map.addLayer({
-        id: "crime-heat",
-        type: "fill",
-        source: "neighborhoods",
-        paint: {
-          "fill-color": [
-            "interpolate",
-            ["linear"], ["get", "crime_count"],
-            0, "#2DC937",
-            50, "#FFCC00",
-            200, "#D7263D"
-          ],
-          "fill-opacity": 0.6
-        }
-      });
+      if (!map.getLayer("crime-heat")) {
+        map.addLayer({
+          id: "crime-heat",
+          type: "fill",
+          source: "neighborhoods",
+          paint: {
+            "fill-color": [
+              "interpolate",
+              ["linear"], ["get", "crime_count"],
+              0, "#2DC937",
+              50, "#FFCC00",
+              200, "#D7263D"
+            ],
+            "fill-opacity": 0.6
+          }
+        });
+      }
 
-      // Borders
-      map.addLayer({
-        id: "neighborhood-borders",
-        type: "line",
-        source: "neighborhoods",
-        paint: { "line-color": "#000", "line-width": 1 }
-      });
+      if (!map.getLayer("neighborhood-borders")) {
+        map.addLayer({
+          id: "neighborhood-borders",
+          type: "line",
+          source: "neighborhoods",
+          paint: { "line-color": "#000", "line-width": 1 }
+        });
+      }
 
-      // Popup
       const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
       map.on("mousemove", "crime-heat", (e) => {
-        if (!e.features.length) return;
-        const feature = e.features[0];
-        const name = feature.properties.name;
-        const crimeCount = feature.properties.crime_count;
-
-        popup
-          .setLngLat(e.lngLat)
-          .setHTML(`<strong>${name}</strong><br/>Crimes: ${crimeCount}`)
-          .addTo(map);
+        if (!e.features || !e.features.length) return;
+        const feat = e.features[0];
+        const name = feat.properties.name || feat.properties.Name || "Neighborhood";
+        const count = feat.properties.crime_count || 0;
+        popup.setLngLat(e.lngLat).setHTML(`<strong>${name}</strong><br/>Crimes (last 7d): ${count}`).addTo(map);
       });
       map.on("mouseleave", "crime-heat", () => popup.remove());
 
-      // Toggle crime layers
       document.getElementById('toggleCrimeBtn').addEventListener('click', () => {
-        const visibilityHeat = map.getLayoutProperty('crime-heat', 'visibility');
-        const visibilityBorders = map.getLayoutProperty('neighborhood-borders', 'visibility');
+        const vis = map.getLayoutProperty('crime-heat','visibility') || 'visible';
+        map.setLayoutProperty('crime-heat','visibility', vis === 'visible' ? 'none' : 'visible');
+        map.setLayoutProperty('neighborhood-borders','visibility', vis === 'visible' ? 'none' : 'visible');
+      });
+    })
+    .catch(err => console.error("neighborhoods load error:", err));
 
-        if (visibilityHeat === 'visible') {
-          map.setLayoutProperty('crime-heat', 'visibility', 'none');
-          map.setLayoutProperty('neighborhood-borders', 'visibility', 'none');
-        } else {
-          map.setLayoutProperty('crime-heat', 'visibility', 'visible');
-          map.setLayoutProperty('neighborhood-borders', 'visibility', 'visible');
+  fetch("/api/hospitals")
+    .then(res => res.json())
+    .then(data => {
+      data.features.forEach(feature => {
+        const coords = feature.geometry && feature.geometry.coordinates;
+        const props = feature.properties || {};
+        const occupancy = Number(props.occupancy || props.Occupancy || 0);
+
+        let color = "#2DC937";
+        if (occupancy >= 85) color = "#D7263D";
+        else if (occupancy >= 70) color = "#FFCC00";
+
+        const el = document.createElement("div");
+        el.className = "hospital-marker";
+        el.style.backgroundColor = color;
+        el.innerHTML = "+";
+
+        const popupHtml = `<strong>${props.name || props.NAME || props.Name || "Hospital"}</strong><br/>
+          ${props.address || props.ADDRESS || ""}<br/>
+          Occupancy: ${occupancy}%`;
+
+        const marker = new mapboxgl.Marker({ element: el })
+          .setLngLat(coords)
+          .setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(popupHtml))
+          .addTo(map);
+
+        hospitalMarkers.push(marker);
+      });
+
+      document.getElementById('toggleHospitalsBtn').addEventListener('click', () => {
+        hospitalsVisible = !hospitalsVisible;
+        hospitalMarkers.forEach(m => hospitalsVisible ? m.addTo(map) : m.remove());
+      });
+    })
+    .catch(err => console.error("hospitals load error:", err));
+
+  try {
+    if (!map.getSource("traffic")) {
+      map.addSource("traffic", { type: "vector", url: "mapbox://mapbox.mapbox-traffic-v1" });
+    }
+    if (!map.getLayer("traffic")) {
+      map.addLayer({
+        id: "traffic",
+        type: "line",
+        source: "traffic",
+        "source-layer": "traffic",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": [
+            "case",
+            ["==", ["get", "congestion"], "low"], "#2DC937",
+            ["==", ["get", "congestion"], "moderate"], "#FFCC00",
+            ["==", ["get", "congestion"], "heavy"], "#FF6600",
+            ["==", ["get", "congestion"], "severe"], "#D7263D",
+            "#999"
+          ],
+          "line-width": 2
         }
       });
-    });
-
-  // Add traffic source + layers
-  map.addSource("traffic", {
-    type: "vector",
-    url: "mapbox://mapbox.mapbox-traffic-v1"
-  });
-
-  map.addLayer({
-    id: "traffic",
-    type: "line",
-    source: "traffic",
-    "source-layer": "traffic",
-    layout: { "line-cap": "round", "line-join": "round" },
-    paint: {
-      "line-color": [
-        "case",
-        ["==", ["get", "congestion"], "low"], "#2DC937",
-        ["==", ["get", "congestion"], "moderate"], "#FFCC00",
-        ["==", ["get", "congestion"], "heavy"], "#FF6600",
-        ["==", ["get", "congestion"], "severe"], "#D7263D",
-        "#999"
-      ],
-      "line-width": 2
     }
-  });
+  } catch (e) {
+    console.warn("Traffic layer not available:", e);
+  }
 
-  // Toggle traffic
   document.getElementById('toggleTrafficBtn').addEventListener('click', () => {
-    const visibilityTraffic = map.getLayoutProperty('traffic', 'visibility');
-    if (visibilityTraffic === 'visible') {
-      map.setLayoutProperty('traffic', 'visibility', 'none');
-    } else {
-      map.setLayoutProperty('traffic', 'visibility', 'visible');
+    const vis = map.getLayoutProperty('traffic','visibility') || 'visible';
+    map.setLayoutProperty('traffic','visibility', vis === 'visible' ? 'none' : 'visible');
+  });
+
+  const toggleHotspots = async () => {
+    if (!hotspotsAdded) {
+      const res = await fetch("/api/hotspots");
+      if (!res.ok) {
+        console.error("Failed to fetch /api/hotspots");
+        return;
+      }
+      const points = await res.json();
+      if (!points || !points.features || points.features.length === 0) {
+        console.warn("No recent crime points to build hotspots.");
+        map.addSource("crime-hexes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        map.addLayer({
+          id: "crime-hex-layer",
+          type: "fill-extrusion",
+          source: "crime-hexes",
+          layout: { visibility: "none" },
+          paint: {
+            "fill-extrusion-color": "#ff0000",
+            "fill-extrusion-height": 0,
+            "fill-extrusion-opacity": 0.5
+          }
+        });
+        hotspotsAdded = true;
+        return;
+      }
+
+      const bbox = turf.bbox(points);
+      const bboxPoly = turf.bboxPolygon(bbox);
+      const bufferedBbox = turf.buffer(bboxPoly, 1, { units: "kilometers" });
+      const cellSizeKm = 0.4;
+      const hexGrid = turf.hexGrid(turf.bbox(bufferedBbox), cellSizeKm, { units: "kilometers" });
+
+      hexGrid.features.forEach(hex => {
+        const ptsWithin = turf.pointsWithinPolygon(points, hex);
+        hex.properties = hex.properties || {};
+        hex.properties.count = (ptsWithin && ptsWithin.features) ? ptsWithin.features.length : 0;
+      });
+
+      // MODIFIED: Filter out hexagons with a count of less than 3
+      const hexFiltered = {
+        type: "FeatureCollection",
+        features: hexGrid.features.filter(h => (h.properties && h.properties.count && h.properties.count >= 7))
+      };
+
+      if (!map.getSource("crime-hexes")) {
+        map.addSource("crime-hexes", { type: "geojson", data: hexFiltered });
+      } else {
+        map.getSource("crime-hexes").setData(hexFiltered);
+      }
+
+      if (!map.getLayer("crime-hex-layer")) {
+        map.addLayer({
+          id: "crime-hex-layer",
+          type: "fill-extrusion",
+          source: "crime-hexes",
+          layout: { visibility: "none" },
+          paint: {
+            // MODIFIED: Use a single red for all "hot" hexagons
+            "fill-extrusion-color": "#D7263D", 
+            "fill-extrusion-height": ["*", 10, ["get", "count"]],
+            "fill-extrusion-opacity": 0.55
+          }
+        });
+        
+        const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
+        map.on("mousemove", "crime-hex-layer", (e) => {
+          if (!e.features || !e.features.length) return;
+          const feat = e.features[0];
+          const count = feat.properties.count || 0;
+          popup.setLngLat(e.lngLat).setHTML(`<strong>Crimes in Hex:</strong> ${count}`).addTo(map);
+        });
+        map.on("mouseleave", "crime-hex-layer", () => {
+          const popup = map.getPopup();
+          if(popup) popup.remove();
+        });
+      }
+
+      hotspotsAdded = true;
     }
+
+    if (map.getLayer("crime-hex-layer")) {
+      const vis = map.getLayoutProperty("crime-hex-layer", "visibility") || "none";
+      const newVis = (vis === "visible") ? "none" : "visible";
+      map.setLayoutProperty("crime-hex-layer", "visibility", newVis);
+      hotspotsVisible = (newVis === "visible");
+    }
+  };
+
+  document.getElementById('toggleHotspotsBtn').addEventListener('click', () => {
+    toggleHotspots().catch(e => console.error("Hotspots toggle error:", e));
   });
 });
 </script>
