@@ -94,7 +94,7 @@
                 </div>
                 <div class="mt-4 sm:mt-0 flex flex-wrap justify-center sm:justify-end gap-2">
                     <!-- The Home button link has been verified and is now an anchor tag with href="home.html" -->
-                    <a href="home.html" class="px-4 py-2 bg-blue-600 rounded-md font-medium hover:bg-blue-700 transition">
+                    <a href="{{ url_for('home') }}" class="px-4 py-2 bg-blue-600 rounded-md font-medium hover:bg-blue-700 transition">
                         Home
                     </a>
                     <button class="px-4 py-2 bg-gray-700 rounded-md font-medium hover:bg-gray-600 transition" onclick="showDashboard('ems')">

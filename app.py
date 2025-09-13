@@ -145,7 +145,7 @@ def get_hotspots():
 # =========================
 @app.route("/")
 def index():
-    return render_template("map.html")  # load map by default
+    return render_template("home.html")  # load map by default
 
 
 @app.route("/home")
