@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Baltimore Crime Time-Lapse</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <style>
+    body, html { 
+      margin: 0; 
+      padding: 0; 
+      height: 100%; 
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      overflow: hidden;
+      background-color: #111;
+    }
+    #map { 
+      position: absolute; 
+      top: 0; 
+      bottom: 0; 
+      width: 100%; 
+    }
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30, 30, 30, 0.9);
+      color: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      width: 90%;
+      max-width: 600px;
+    }
+    .controls h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 0;
+    }
+    .controls h2 {
+      font-size: 1rem;
+      font-weight: 400;
+      margin: 0;
+      color: #bbb;
+    }
+    #time-display {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #FFC107;
+      text-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+      margin: 5px 0;
+    }
+    .slider-container {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    #timeline-slider {
+      flex-grow: 1;
+      -webkit-appearance: none;
+      height: 8px;
+      background: #444;
+      border-radius: 4px;
+      outline: none;
+      transition: background 0.3s;
+    }
+    #timeline-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      background: #FFC107;
+      border: 3px solid #222;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    #timeline-slider::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      background: #FFC107;
+      border: 3px solid #222;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    #play-pause-btn {
+      width: 50px;
+      height: 50px;
+      border: none;
+      background: #FFC107;
+      color: #222;
+      border-radius: 50%;
+      font-size: 1.5rem;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+      transition: transform 0.2s, background-color 0.2s;
+    }
+    #play-pause-btn:hover {
+      background-color: #FFD54F;
+      transform: scale(1.05);
+    }
+    #play-pause-btn:active {
+      transform: scale(0.95);
+    }
+    .legend {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(30, 30, 30, 0.9);
+      color: #fff;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .color-swatch {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+    }
+    .legend-label {
+      font-size: 0.9rem;
+    }
+    .tooltip {
+        position: absolute;
+        z-index: 100;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        border-radius: 6px;
+        font-size: 14px;
+        pointer-events: none;
+        white-space: nowrap;
+        display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+  <div id="tooltip" class="tooltip"></div>
+
+  <div class="controls">
+    <h1 id="time-lapse-title">Baltimore Crime Time-Lapse</h1>
+    <h2 id="time-lapse-subtitle">Predicted future hotspots</h2>
+    <div id="time-display"></div>
+    <div class="slider-container">
+      <input type="range" id="timeline-slider" value="0">
+      <button id="play-pause-btn">▶</button>
+    </div>
+  </div>
+  
+  <div class="legend">
+    <h3>Crime Density</h3>
+    <div class="legend-item">
+      <div class="color-swatch" style="background-color: #fce12d;"></div>
+      <span class="legend-label">Low</span>
+    </div>
+    <div class="legend-item">
+      <div class="color-swatch" style="background-color: #ff884b;"></div>
+      <span class="legend-label">Medium</span>
+    </div>
+    <div class="legend-item">
+      <div class="color-swatch" style="background-color: #f73b3b;"></div>
+      <span class="legend-label">High</span>
+    </div>
+  </div>
+
+<script>
+mapboxgl.accessToken = "pk.eyJ1IjoidGhlZmxhc2gxMDAyIiwiYSI6ImNtZmYwMjZuODBkN2UybXExaTM2ZGl0d3cifQ.j520k_qlveWfMAYCCu5IqQ";
+
+const map = new mapboxgl.Map({
+  container: "map",
+  style: "mapbox://styles/mapbox/streets-v12",
+  center: [-76.6122, 39.2904],
+  zoom: 11,
+  pitch: 45,
+  bearing: -17.6,
+  antialias: true
+});
+
+function createHexGrid(bbox, cellWidth, units) {
+  const features = [];
+  // Approximate conversions for lat/lon to km
+  const latKm = 111.32;
+  const lonKm = latKm * Math.cos(bbox[1] * Math.PI / 180);
+
+  const dx = cellWidth / lonKm;
+  const dy = cellWidth / latKm;
+  const hx = dx * Math.sqrt(3) / 2;
+  const hy = dy / 2;
+  const origin = [bbox[0], bbox[1]];
+
+  let i = 0;
+  for (let y = origin[1]; y < bbox[3] + dy; y += 1.5 * dy) {
+    let offset = (i % 2 === 0) ? 0 : hx;
+    for (let x = origin[0] + offset; x < bbox[2] + hx; x += 2 * hx) {
+      features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [x, y + dy],
+              [x + hx, y + hy],
+              [x + hx, y - hy],
+              [x, y - dy],
+              [x - hx, y - hy],
+              [x - hx, y + hy],
+              [x, y + dy]
+            ]
+          ]
+        },
+        properties: { count: 0 }
+      });
+    }
+    i++;
+  }
+  return { type: 'FeatureCollection', features: features };
+}
+
+// Function to generate initial hexagon grid and simulate crime data
+function generateInitialData() {
+  const bbox = [-76.711, 39.206, -76.518, 39.372]; // Bounding box for Baltimore
+  const cellWidth = 0.5; // Kilometers
+  const hexGrid = createHexGrid(bbox, cellWidth, 'kilometers');
+
+  const points = [];
+  // Reduced number of points to simulate fewer initial hexagons
+  for (let i = 0; i < 250; i++) {
+    const lat = bbox[1] + (Math.random() * (bbox[3] - bbox[1]));
+    const lon = bbox[0] + (Math.random() * (bbox[2] - bbox[0]));
+    points.push([lon, lat]);
+  }
+
+  // Assign a count to each hexagon based on how many points it contains
+  hexGrid.features.forEach(hex => {
+    let count = 0;
+    const polygon = hex.geometry.coordinates[0];
+    points.forEach(point => {
+        let inside = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            const xi = polygon[i][0], yi = polygon[i][1];
+            const xj = polygon[j][0], yj = polygon[j][1];
+            const intersect = ((yi > point[1]) != (yj > point[1])) &&
+                (point[0] < (xj - xi) * (point[1] - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        if (inside) {
+            count++;
+        }
+    });
+    hex.properties.count = count;
+  });
+
+  const filteredFeatures = hexGrid.features.filter(feature => feature.properties.count > 0);
+  
+  const finalHexGrid = {
+    type: 'FeatureCollection',
+    features: filteredFeatures
+  };
+
+  return { month: "September 2025 (Predicted)", data: finalHexGrid };
+}
+
+const initialData = generateInitialData();
+
+// This function simulates an ML model's predictions by generating future data points.
+function generatePredictions(baseData, numMonths = 3) {
+  const allData = [baseData];
+  const months = ["October", "November", "December"]; // Names for the predicted months
+
+  for (let i = 0; i < numMonths; i++) {
+    const nextMonthData = {
+      type: "FeatureCollection",
+      features: baseData.data.features.map(feature => {
+        // Simulate a change in crime count for the next month
+        const countChange = Math.floor((Math.random() - 0.5) * 20); // +/- 10
+        const newCount = Math.max(0, feature.properties.count + countChange);
+        
+        return {
+          ...feature,
+          properties: { count: newCount }
+        };
+      })
+    };
+
+    allData.push({ month: `${months[i]} 2025 (Predicted)`, data: nextMonthData });
+  }
+  
+  return allData;
+}
+
+const preprocessedData = generatePredictions(initialData);
+
+const slider = document.getElementById('timeline-slider');
+const playPauseBtn = document.getElementById('play-pause-btn');
+const timeDisplay = document.getElementById('time-display');
+const tooltip = document.getElementById('tooltip');
+
+let currentMonthIndex = 0;
+let isPlaying = false;
+let intervalId = null;
+
+// Initialize the slider range based on the new, generated data
+slider.min = 0;
+slider.max = preprocessedData.length - 1;
+slider.value = 0;
+
+function updateMap(monthIndex) {
+  const data = preprocessedData[monthIndex].data;
+  const monthName = preprocessedData[monthIndex].month;
+
+  // Set the source data to the current month's hexagons
+  map.getSource('crime-hexes').setData(data);
+
+  // Update the time display
+  timeDisplay.textContent = monthName;
+}
+
+function animateTimeline() {
+  currentMonthIndex = (currentMonthIndex + 1) % preprocessedData.length;
+  slider.value = currentMonthIndex;
+  updateMap(currentMonthIndex);
+}
+
+function toggleAnimation() {
+  if (isPlaying) {
+    clearInterval(intervalId);
+    playPauseBtn.textContent = '▶';
+  } else {
+    // Start or resume animation
+    animateTimeline();
+    intervalId = setInterval(animateTimeline, 1500); // Change month every 1.5 seconds
+    playPauseBtn.textContent = '⏸';
+  }
+  isPlaying = !isPlaying;
+}
+
+map.on('load', () => {
+  // Add a source for the hexagon data, initially empty
+  map.addSource('crime-hexes', {
+    type: 'geojson',
+    data: {
+      type: 'FeatureCollection',
+      features: []
+    }
+  });
+
+  // Add the 3D hexagon layer
+  map.addLayer({
+    id: 'crime-hex-layer',
+    type: 'fill-extrusion',
+    source: 'crime-hexes',
+    paint: {
+      'fill-extrusion-color': [
+        'interpolate',
+        ['linear'],
+        ['get', 'count'],
+        0, '#fce12d', // Low count: yellow
+        15, '#ff884b', // Medium count: orange
+        30, '#f73b3b' // High count: red
+      ],
+      'fill-extrusion-height': [
+        'interpolate',
+        ['linear'],
+        ['get', 'count'],
+        0, 0,
+        30, 2500 // Max height for the highest crime count
+      ],
+      'fill-extrusion-opacity': 0.8
+    }
+  });
+
+  // Event listener for the play/pause button
+  playPauseBtn.addEventListener('click', toggleAnimation);
+
+  // Event listener for the slider
+  slider.addEventListener('input', (e) => {
+    // Pause the animation if the user interacts with the slider
+    if (isPlaying) {
+      toggleAnimation();
+    }
+    currentMonthIndex = parseInt(e.target.value);
+    updateMap(currentMonthIndex);
+  });
+
+  // Event listener for showing tooltip on hover
+  map.on('mousemove', 'crime-hex-layer', (e) => {
+    if (e.features.length > 0) {
+      const feature = e.features[0];
+      const count = feature.properties.count;
+      tooltip.style.display = 'block';
+      tooltip.textContent = `Predicted Crime Count: ${count}`;
+      tooltip.style.left = `${e.originalEvent.clientX + 10}px`;
+      tooltip.style.top = `${e.originalEvent.clientY + 10}px`;
+    } else {
+      tooltip.style.display = 'none';
+    }
+  });
+
+  // Event listener for hiding tooltip on mouse leave
+  map.on('mouseleave', 'crime-hex-layer', () => {
+    tooltip.style.display = 'none';
+  });
+
+  // Initial update to show the first month
+  updateMap(currentMonthIndex);
+});
+</script>
+
+</body>
+</html>
