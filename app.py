@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, render_template
+from flask import Flask, request, jsonify, render_template
 import requests
 import os
 import pandas as pd
@@ -10,7 +10,7 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 # =========================
 # OpenRouter API Chat Setup
 # =========================
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")  
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL_NAME = "google/gemini-2.0-flash-exp:free"
 
@@ -88,11 +88,19 @@ def get_neighborhoods():
     return jsonify(neighborhoods)
 
 # =========================
-# Frontend
+# Frontend Routes
 # =========================
 @app.route("/")
 def index():
-    return render_template("home.html")
+    return render_template("home.html")  
+
+@app.route("/home")
+def home():
+    return render_template("home.html")  
+
+@app.route("/map")
+def map_page():
+    return render_template("map.html")   
 
 # =========================
 # Run the App
