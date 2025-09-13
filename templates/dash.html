@@ -1,469 +1,415 @@
-import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import { MapPin, Phone, Clock, Bed, Users, AlertTriangle, Filter, Map } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import HospitalMap from './components/HospitalMap'
-import './App.css'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baltimore Hospital Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background-color: #1f2937; /* bg-gray-800 */
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #4b5563; /* bg-gray-600 */
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 min-h-screen text-gray-100 flex flex-col items-center p-4 sm:p-8">
 
-// Mock data for hospitals
-const mockHospitals = [
-  {
-    id: 1,
-    name: "City General Hospital",
-    address: "123 Main St, Downtown",
-    distance: 0.8,
-    phone: "(555) 123-4567",
-    type: "public",
-    specialties: ["Emergency", "Cardiology", "Trauma"],
-    bedAvailability: {
-      totalBeds: 250,
-      availableBeds: 45,
-      icuBeds: 20,
-      availableIcuBeds: 3,
-      erBeds: 15,
-      availableErBeds: 8
-    },
-    waitTimes: {
-      erWaitTime: 25,
-      admissionWaitTime: 120
-    },
-    status: "available",
-    coordinates: [40.7128, -74.0060]
-  },
-  {
-    id: 2,
-    name: "St. Mary's Medical Center",
-    address: "456 Oak Ave, Midtown",
-    distance: 1.2,
-    phone: "(555) 234-5678",
-    type: "private",
-    specialties: ["Emergency", "Pediatrics", "Maternity"],
-    bedAvailability: {
-      totalBeds: 180,
-      availableBeds: 12,
-      icuBeds: 15,
-      availableIcuBeds: 1,
-      erBeds: 12,
-      availableErBeds: 2
-    },
-    waitTimes: {
-      erWaitTime: 45,
-      admissionWaitTime: 180
-    },
-    status: "limited",
-    coordinates: [40.7589, -73.9851]
-  },
-  {
-    id: 3,
-    name: "Metro Emergency Center",
-    address: "789 Pine St, Uptown",
-    distance: 2.1,
-    phone: "(555) 345-6789",
-    type: "specialty",
-    specialties: ["Emergency", "Trauma", "Surgery"],
-    bedAvailability: {
-      totalBeds: 100,
-      availableBeds: 2,
-      icuBeds: 10,
-      availableIcuBeds: 0,
-      erBeds: 20,
-      availableErBeds: 1
-    },
-    waitTimes: {
-      erWaitTime: 75,
-      admissionWaitTime: 240
-    },
-    status: "full",
-    coordinates: [40.7831, -73.9712]
-  }
-]
-
-function Header({ searchQuery, setSearchQuery }) {
-  return (
-    <header className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo and Title */}
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold text-gray-900">Aura Men</h1>
-            </div>
-            <Badge variant="secondary" className="hidden sm:inline-flex">
-              Emergency Response
-            </Badge>
-          </div>
-
-          {/* Search Bar */}
-          <div className="flex-1 max-w-lg mx-8">
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                type="text"
-                placeholder="Search hospitals by name or specialty..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full"
-              />
-            </div>
-          </div>
-
-          {/* Emergency Button */}
-          <Button 
-            variant="destructive" 
-            size="lg"
-            className="bg-red-600 hover:bg-red-700 text-white font-semibold"
-          >
-            <Phone className="w-4 h-4 mr-2" />
-            Emergency 911
-          </Button>
-        </div>
-      </div>
-    </header>
-  )
-}
-
-function StatusIndicator({ status }) {
-  const statusConfig = {
-    available: { color: 'bg-green-500', text: 'Available', textColor: 'text-green-700' },
-    limited: { color: 'bg-yellow-500', text: 'Limited', textColor: 'text-yellow-700' },
-    full: { color: 'bg-red-500', text: 'At Capacity', textColor: 'text-red-700' }
-  }
-
-  const config = statusConfig[status] || statusConfig.available
-
-  return (
-    <div className="flex items-center space-x-2">
-      <div className={`w-3 h-3 rounded-full ${config.color} animate-pulse`}></div>
-      <span className={`text-sm font-medium ${config.textColor}`}>
-        {config.text}
-      </span>
+    <div class="w-full max-w-6xl text-center">
+        <h1 class="text-3xl sm:text-4xl font-bold mb-2 text-white">Baltimore Hospital Dashboard</h1>
+        <p class="text-sm sm:text-base text-gray-400 mb-6">
+            Real-time count of beds, doctors, and equipment.
+        </p>
+        <p id="user-id" class="text-xs text-gray-500 mb-4 hidden"></p>
     </div>
-  )
-}
 
-function HospitalCard({ hospital, isSelected, onSelect }) {
-  const bedUtilization = ((hospital.bedAvailability.totalBeds - hospital.bedAvailability.availableBeds) / hospital.bedAvailability.totalBeds) * 100
-  const icuUtilization = ((hospital.bedAvailability.icuBeds - hospital.bedAvailability.availableIcuBeds) / hospital.bedAvailability.icuBeds) * 100
-
-  return (
-    <Card 
-      className={`hover:shadow-lg transition-all duration-200 border-l-4 cursor-pointer ${
-        isSelected 
-          ? 'border-l-blue-600 shadow-lg ring-2 ring-blue-200' 
-          : 'border-l-blue-500'
-      }`}
-      onClick={onSelect}
-    >
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle className="text-lg font-semibold text-gray-900">
-              {hospital.name}
-            </CardTitle>
-            <p className="text-sm text-gray-600 mt-1">{hospital.address}</p>
-            <div className="flex items-center space-x-4 mt-2">
-              <div className="flex items-center text-sm text-gray-500">
-                <MapPin className="w-4 h-4 mr-1" />
-                {hospital.distance} mi
-              </div>
-              <Badge variant={hospital.type === 'public' ? 'default' : hospital.type === 'private' ? 'secondary' : 'outline'}>
-                {hospital.type}
-              </Badge>
-            </div>
-          </div>
-          <StatusIndicator status={hospital.status} />
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        {/* Bed Availability */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="text-center">
-            <div className="flex items-center justify-center space-x-1 mb-1">
-              <Bed className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium">General</span>
-            </div>
-            <div className="text-lg font-bold text-gray-900">
-              {hospital.bedAvailability.availableBeds}
-            </div>
-            <div className="text-xs text-gray-500">
-              of {hospital.bedAvailability.totalBeds}
-            </div>
-            <Progress value={100 - bedUtilization} className="h-2 mt-1" />
-          </div>
-
-          <div className="text-center">
-            <div className="flex items-center justify-center space-x-1 mb-1">
-              <Users className="w-4 h-4 text-red-600" />
-              <span className="text-sm font-medium">ICU</span>
-            </div>
-            <div className="text-lg font-bold text-gray-900">
-              {hospital.bedAvailability.availableIcuBeds}
-            </div>
-            <div className="text-xs text-gray-500">
-              of {hospital.bedAvailability.icuBeds}
-            </div>
-            <Progress value={100 - icuUtilization} className="h-2 mt-1" />
-          </div>
-
-          <div className="text-center">
-            <div className="flex items-center justify-center space-x-1 mb-1">
-              <AlertTriangle className="w-4 h-4 text-orange-600" />
-              <span className="text-sm font-medium">ER</span>
-            </div>
-            <div className="text-lg font-bold text-gray-900">
-              {hospital.bedAvailability.availableErBeds}
-            </div>
-            <div className="text-xs text-gray-500">
-              of {hospital.bedAvailability.erBeds}
-            </div>
-          </div>
-        </div>
-
-        {/* Wait Times */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-          <div className="flex items-center space-x-2">
-            <Clock className="w-4 h-4 text-gray-500" />
-            <span className="text-sm text-gray-600">ER Wait:</span>
-            <span className="font-semibold text-gray-900">{hospital.waitTimes.erWaitTime} min</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-600">Admission:</span>
-            <span className="font-semibold text-gray-900">{hospital.waitTimes.admissionWaitTime} min</span>
-          </div>
-        </div>
-
-        {/* Specialties */}
-        <div className="flex flex-wrap gap-1 pt-2">
-          {hospital.specialties.map((specialty, index) => (
-            <Badge key={index} variant="outline" className="text-xs">
-              {specialty}
-            </Badge>
-          ))}
-        </div>
-
-        {/* Contact Button */}
-        <Button 
-          variant="outline" 
-          className="w-full mt-3"
-          onClick={(e) => {
-            e.stopPropagation()
-            window.open(`tel:${hospital.phone}`)
-          }}
-        >
-          <Phone className="w-4 h-4 mr-2" />
-          Call {hospital.phone}
-        </Button>
-      </CardContent>
-    </Card>
-  )
-}
-
-function Dashboard() {
-  const [hospitals] = useState(mockHospitals)
-  const [filteredHospitals, setFilteredHospitals] = useState(mockHospitals)
-  const [selectedHospital, setSelectedHospital] = useState(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [activeTab, setActiveTab] = useState('list')
-
-  // Filter hospitals based on search query
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredHospitals(hospitals)
-    } else {
-      const filtered = hospitals.filter(hospital =>
-        hospital.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        hospital.specialties.some(specialty => 
-          specialty.toLowerCase().includes(searchQuery.toLowerCase())
-        ) ||
-        hospital.address.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-      setFilteredHospitals(filtered)
-    }
-  }, [searchQuery, hospitals])
-
-  const handleHospitalSelect = (hospital) => {
-    setSelectedHospital(hospital)
-    setActiveTab('list')
-    // Scroll to hospital card
-    setTimeout(() => {
-      const element = document.getElementById(`hospital-${hospital.id}`)
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-    }, 100)
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Header searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                  <Bed className="w-4 h-4 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Available Beds</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {hospitals.reduce((sum, h) => sum + h.bedAvailability.availableBeds, 0)}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <MapPin className="w-4 h-4 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Nearby Hospitals</p>
-                  <p className="text-2xl font-bold text-gray-900">{hospitals.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                  <Clock className="w-4 h-4 text-yellow-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Avg ER Wait</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {Math.round(hospitals.reduce((sum, h) => sum + h.waitTimes.erWaitTime, 0) / hospitals.length)} min
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                  <Users className="w-4 h-4 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">ICU Available</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {hospitals.reduce((sum, h) => sum + h.bedAvailability.availableIcuBeds, 0)}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content with Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="list" className="flex items-center space-x-2">
-              <Bed className="w-4 h-4" />
-              <span>Hospital List</span>
-            </TabsTrigger>
-            <TabsTrigger value="map" className="flex items-center space-x-2">
-              <Map className="w-4 h-4" />
-              <span>Map View</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="list" className="space-y-6">
-            {/* Filter Controls */}
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-4">
-                  <Filter className="w-5 h-5 text-gray-500" />
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="cursor-pointer hover:bg-gray-100">
-                      All Hospitals
-                    </Badge>
-                    <Badge variant="outline" className="cursor-pointer hover:bg-gray-100">
-                      Available Beds
-                    </Badge>
-                    <Badge variant="outline" className="cursor-pointer hover:bg-gray-100">
-                      Emergency Only
-                    </Badge>
-                    <Badge variant="outline" className="cursor-pointer hover:bg-gray-100">
-                      ICU Available
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Hospital List */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredHospitals.map((hospital) => (
-                <div key={hospital.id} id={`hospital-${hospital.id}`}>
-                  <HospitalCard 
-                    hospital={hospital} 
-                    isSelected={selectedHospital?.id === hospital.id}
-                    onSelect={() => setSelectedHospital(hospital)}
-                  />
-                </div>
-              ))}
-            </div>
-
-            {filteredHospitals.length === 0 && (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No hospitals found</h3>
-                  <p className="text-gray-600">Try adjusting your search criteria or filters.</p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="map" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Map className="w-5 h-5" />
-                  <span>Hospital Locations</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <HospitalMap 
-                  hospitals={filteredHospitals}
-                  selectedHospital={selectedHospital}
-                  onHospitalSelect={handleHospitalSelect}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </main>
+    <!-- Total Resources Summary Cards -->
+    <div id="summary-cards" class="w-full max-w-6xl grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+        <!-- Cards will be dynamically inserted here by JavaScript -->
     </div>
-  )
-}
 
-function App() {
-  return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-      </Routes>
-    </Router>
-  )
-}
+    <!-- Filter and Sort Controls -->
+    <div class="w-full max-w-6xl flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4 mb-8">
+        <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 w-full">
+            <div class="flex items-center space-x-2 w-full">
+                <label for="specialty-filter" class="text-gray-400 whitespace-nowrap">Filter by Specialty:</label>
+                <select id="specialty-filter" class="bg-gray-700 text-white rounded-md p-2 w-full"></select>
+            </div>
+            <div class="flex items-center space-x-2 w-full">
+                <label for="size-filter" class="text-gray-400 whitespace-nowrap">Filter by Size:</label>
+                <select id="size-filter" class="bg-gray-700 text-white rounded-md p-2 w-full"></select>
+            </div>
+            <div class="flex items-center space-x-2 w-full">
+                <label for="rating-filter" class="text-gray-400 whitespace-nowrap">Filter by Rating:</label>
+                <select id="rating-filter" class="bg-gray-700 text-white rounded-md p-2 w-full"></select>
+            </div>
+        </div>
 
-export default App
+        <div class="flex items-center space-x-2 w-full sm:w-auto mt-4 sm:mt-0">
+            <label for="sort-order" class="text-gray-400 whitespace-nowrap">Sort by:</label>
+            <select id="sort-order" class="bg-gray-700 text-white rounded-md p-2 w-full">
+                <option value="shortestWait">Shortest Wait Time</option>
+                <option value="longestWait">Longest Wait Time</option>
+                <option value="leastBusy">Least Busy</option>
+                <option value="highestRated">Highest Rated</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Detailed Hospital Cards -->
+    <div id="hospital-cards-container" class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Hospital cards will be dynamically inserted here by JavaScript -->
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
+        import {
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged
+        } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
+        import {
+            getFirestore,
+            doc,
+            updateDoc,
+            onSnapshot,
+            collection,
+            setDoc,
+            getDoc,
+            setLogLevel
+        } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+
+        // Set Firebase debug log level
+        setLogLevel('debug');
+
+        // Global variables for Firebase configuration (provided by the environment)
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        let db;
+        let auth;
+        let userId = null;
+        let hospitals = [];
+
+        const hospitalData = [
+            { id: "hospital_a", name: "Baltimore Mercy Hospital", city: "Baltimore", specialty: "Trauma Center", rating: "Level I Trauma", waitTime: "1 hr 30 mins", waitTimeMinutes: 90, size: "Medium", resources: { beds: 50, doctors: 15, equipment: 8 }, operatingHours: "24/7", phone: "410-332-9000", acceptedInsurance: ["Aetna", "Cigna", "BlueCross BlueShield"], patientExperienceScore: 4.5 },
+            { id: "hospital_b", name: "St. Agnes Healthcare", city: "Baltimore", specialty: "Orthopedic & Spine", rating: "Community Hospital", waitTime: "45 mins", waitTimeMinutes: 45, size: "Small", resources: { beds: 25, doctors: 10, equipment: 5 }, operatingHours: "24/7", phone: "410-368-6000", acceptedInsurance: ["BlueCross BlueShield", "UnitedHealthcare", "Medicare"], patientExperienceScore: 4.1 },
+            { id: "hospital_c", name: "University of Maryland Medical Center", city: "Baltimore", specialty: "General Surgery", rating: "Level I Trauma", waitTime: "2 hours", waitTimeMinutes: 120, size: "Large", resources: { beds: 10, doctors: 5, equipment: 2 }, operatingHours: "24/7", phone: "410-328-8667", acceptedInsurance: ["Medicare", "Medicaid", "Cigna"], patientExperienceScore: 3.8 },
+            { id: "hospital_d", name: "Johns Hopkins Hospital", city: "Baltimore", specialty: "Specialized Care", rating: "Level I Trauma", waitTime: "1 hour", waitTimeMinutes: 60, size: "Large", resources: { beds: 60, doctors: 20, equipment: 12 }, operatingHours: "24/7", phone: "410-955-5000", acceptedInsurance: ["Aetna", "Cigna", "Medicare", "UnitedHealthcare"], patientExperienceScore: 4.9 },
+            { id: "hospital_e", name: "Sinai Hospital", city: "Baltimore", specialty: "Cardiology & Oncology", rating: "Community Hospital", waitTime: "30 mins", waitTimeMinutes: 30, size: "Medium", resources: { beds: 35, doctors: 12, equipment: 7 }, operatingHours: "24/7", phone: "410-601-5000", acceptedInsurance: ["BlueCross BlueShield", "Aetna"], patientExperienceScore: 4.2 },
+            { id: "hospital_f", name: "MedStar Harbor Hospital", city: "Baltimore", specialty: "General Medicine", rating: "Community Hospital", waitTime: "1 hr 15 mins", waitTimeMinutes: 75, size: "Small", resources: { beds: 20, doctors: 8, equipment: 4 }, operatingHours: "24/7", phone: "410-350-8111", acceptedInsurance: ["UnitedHealthcare", "Cigna"], patientExperienceScore: 3.5 },
+            { id: "hospital_g", name: "Northwest Hospital", city: "Baltimore", specialty: "Orthopedics", rating: "Community Hospital", waitTime: "1 hour", waitTimeMinutes: 60, size: "Small", resources: { beds: 15, doctors: 7, equipment: 3 }, operatingHours: "24/7", phone: "410-521-2200", acceptedInsurance: ["Aetna", "BlueCross BlueShield"], patientExperienceScore: 4.0 },
+            { id: "hospital_h", name: "MedStar Franklin Square Medical Center", city: "Baltimore", specialty: "Women's Health", rating: "Community Hospital", waitTime: "45 mins", waitTimeMinutes: 45, size: "Medium", resources: { beds: 40, doctors: 14, equipment: 9 }, operatingHours: "24/7", phone: "443-777-7000", acceptedInsurance: ["Cigna", "UnitedHealthcare"], patientExperienceScore: 4.4 },
+            { id: "hospital_i", name: "Mercy Medical Center", city: "Baltimore", specialty: "Cardiology", rating: "Community Hospital", waitTime: "1 hr 30 mins", waitTimeMinutes: 90, size: "Medium", resources: { beds: 30, doctors: 9, equipment: 6 }, operatingHours: "24/7", phone: "410-332-8000", acceptedInsurance: ["Aetna", "Medicare"], patientExperienceScore: 4.1 },
+            { id: "hospital_j", name: "Union Memorial Hospital", city: "Baltimore", specialty: "Sports Medicine", rating: "Community Hospital", waitTime: "1 hour", waitTimeMinutes: 60, size: "Large", resources: { beds: 45, doctors: 18, equipment: 10 }, operatingHours: "24/7", phone: "410-554-2000", acceptedInsurance: ["BlueCross BlueShield", "Medicare"], patientExperienceScore: 4.6 }
+        ];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeFirebase();
+            setupEventListeners();
+        });
+
+        async function initializeFirebase() {
+            try {
+                const firebaseApp = initializeApp(firebaseConfig);
+                db = getFirestore(firebaseApp);
+                auth = getAuth(firebaseApp);
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        document.getElementById('user-id').textContent = `Your User ID: ${userId}`;
+                        document.getElementById('user-id').classList.remove('hidden');
+                        await initializeHospitals();
+                        setupFirestoreListeners();
+                    } else {
+                        userId = null;
+                        document.getElementById('user-id').classList.add('hidden');
+                        console.log("User logged out or not authenticated.");
+                    }
+                });
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+            }
+        }
+
+        async function initializeHospitals() {
+            try {
+                const hospitalRef = doc(db, `artifacts/${appId}/public/data/hospitals`, hospitalData[0].id);
+                const docSnap = await getDoc(hospitalRef);
+                if (!docSnap.exists()) {
+                    console.log("Initializing hospital data in Firestore...");
+                    for (const hospital of hospitalData) {
+                        await setDoc(doc(db, `artifacts/${appId}/public/data/hospitals`, hospital.id), hospital);
+                    }
+                } else {
+                    console.log("Hospital data already initialized.");
+                }
+            } catch (error) {
+                console.error("Error initializing hospitals:", error);
+            }
+        }
+
+        function setupFirestoreListeners() {
+            const hospitalsCollection = collection(db, `artifacts/${appId}/public/data/hospitals`);
+            onSnapshot(hospitalsCollection, (snapshot) => {
+                hospitals = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                renderAll();
+            }, (error) => {
+                console.error("Error listening to Firestore:", error);
+            });
+        }
+
+        function renderAll() {
+            renderSummaryCards();
+            renderFilterOptions();
+            renderHospitalCards();
+        }
+
+        function renderSummaryCards() {
+            const totals = {
+                beds: hospitals.reduce((sum, h) => sum + (h.resources?.beds || 0), 0),
+                doctors: hospitals.reduce((sum, h) => sum + (h.resources?.doctors || 0), 0),
+                equipment: hospitals.reduce((sum, h) => sum + (h.resources?.equipment || 0), 0)
+            };
+
+            const summaryCardsContainer = document.getElementById('summary-cards');
+            summaryCardsContainer.innerHTML = `
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 text-center flex flex-col items-center hover:bg-gray-700 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-10 h-10 text-blue-400 mb-2">
+                        <path d="M21 10V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v5c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zm-2 0H5V5h14v5zM3 14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-2H3v2zm2-2h14v-2H5v2zM5 16h14c1.1 0 2-.9 2-2v-2H3v2c0 1.1.9 2 2 2zM3 18v2c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-2H3z" />
+                    </svg>
+                    <p class="text-4xl font-bold text-white">${totals.beds}</p>
+                    <p class="text-sm text-gray-400 mt-1">Total Beds</p>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 text-center flex flex-col items-center hover:bg-gray-700 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-10 h-10 text-pink-400 mb-2">
+                        <path d="M18.77 12.03c-2.45-2.45-6.43-2.45-8.88 0l-3.32 3.32c-.39.39-.39 1.02 0 1.41l5.58 5.58c.39.39 1.02.39 1.41 0l3.32-3.32c2.45-2.45 2.45-6.43 0-8.88zm-5.07 7.07l-3.25-3.25 3.25-3.25c1.45-1.45 3.8-1.45 5.25 0 .26.26.43.58.5.94l-3.9 3.9c-.39.39-1.02.39-1.41 0zM12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10s10-4.48 10-10C22 6.48 17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                    </svg>
+                    <p class="text-4xl font-bold text-white">${totals.doctors}</p>
+                    <p class="text-sm text-gray-400 mt-1">Total Doctors</p>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 text-center flex flex-col items-center hover:bg-gray-700 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-10 h-10 text-purple-400 mb-2">
+                        <path d="M12 2L6 8v14h12V8l-6-6zm0 2.83L16.17 9H7.83L12 4.83zM15 13h-2v2h-2v-2H9v-2h2V9h2v2h2v2z"/>
+                    </svg>
+                    <p class="text-4xl font-bold text-white">${totals.equipment}</p>
+                    <p class="text-sm text-gray-400 mt-1">Total Equipment</p>
+                </div>
+            `;
+        }
+
+        function renderFilterOptions() {
+            const specialties = ['All', ...new Set(hospitalData.map(h => h.specialty))];
+            const sizes = ['All', ...new Set(hospitalData.map(h => h.size))];
+            const ratings = ['All', ...new Set(hospitalData.map(h => h.rating))];
+
+            const specialtySelect = document.getElementById('specialty-filter');
+            specialtySelect.innerHTML = specialties.map(s => `<option value="${s}">${s}</option>`).join('');
+
+            const sizeSelect = document.getElementById('size-filter');
+            sizeSelect.innerHTML = sizes.map(s => `<option value="${s}">${s}</option>`).join('');
+
+            const ratingSelect = document.getElementById('rating-filter');
+            ratingSelect.innerHTML = ratings.map(r => `<option value="${r}">${r}</option>`).join('');
+        }
+
+        function renderHospitalCards() {
+            const filteredAndSortedHospitals = getFilteredAndSortedHospitals();
+            const container = document.getElementById('hospital-cards-container');
+            container.innerHTML = '';
+
+            if (filteredAndSortedHospitals.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-1 md:col-span-2 lg:col-span-3 text-center text-gray-400 text-lg">
+                        No hospitals found with the selected criteria.
+                    </div>
+                `;
+                return;
+            }
+
+            filteredAndSortedHospitals.forEach(hospital => {
+                const card = document.createElement('div');
+                card.className = "bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 hover:shadow-xl transition-shadow duration-300";
+                card.innerHTML = `
+                    <h2 class="text-xl sm:text-2xl font-semibold text-white mb-2">${hospital.name}</h2>
+                    <p class="text-gray-400 mb-4">${hospital.city}</p>
+                    <div class="space-y-2 mb-4 text-sm text-gray-300">
+                        <p><span class="font-semibold text-gray-200">Specialty:</span> ${hospital.specialty}</p>
+                        <p><span class="font-semibold text-gray-200">Wait Time:</span> ${hospital.waitTime}</p>
+                        <p><span class="font-semibold text-gray-200">Level of Care:</span> ${hospital.rating}</p>
+                        <p><span class="font-semibold text-gray-200">Size:</span> ${hospital.size}</p>
+                        <p><span class="font-semibold text-gray-200">Operating Hours:</span> ${hospital.operatingHours}</p>
+                        <p><span class="font-semibold text-gray-200">Phone:</span> ${hospital.phone}</p>
+                    </div>
+                    <div class="mb-4">
+                        <div class="flex items-center space-x-2">
+                            <span class="font-semibold text-gray-200">Patient Experience:</span>
+                            <span class="text-white text-lg font-bold">${hospital.patientExperienceScore}</span>
+                            ${renderStars(hospital.patientExperienceScore)}
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <p class="font-semibold text-gray-200 mb-2">Accepted Insurance:</p>
+                        <div class="flex flex-wrap gap-2 text-sm">
+                            ${hospital.acceptedInsurance.map(insurance => `
+                                <span class="bg-gray-700 text-gray-300 px-3 py-1 rounded-full whitespace-nowrap">${insurance}</span>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="bg-gray-700 p-4 rounded-lg">
+                        <h3 class="text-md sm:text-lg font-medium text-gray-200 mb-2">Resources Available</h3>
+                        <div class="space-y-3">
+                            ${Object.entries(hospital.resources).map(([resource, count]) => `
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-300 text-sm capitalize">${resource}:</span>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="font-semibold text-white text-lg w-8 text-center">${count}</span>
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full text-white ${getResourceStatus(resource, count).color}">
+                                            ${getResourceStatus(resource, count).status}
+                                        </span>
+                                        <button data-hospital-id="${hospital.id}" data-resource="${resource}" data-change="-1" class="bg-gray-600 hover:bg-gray-500 text-white font-bold p-1 rounded-full w-6 h-6 flex items-center justify-center transition-colors duration-200">-</button>
+                                        <button data-hospital-id="${hospital.id}" data-resource="${resource}" data-change="1" class="bg-gray-600 hover:bg-gray-500 text-white font-bold p-1 rounded-full w-6 h-6 flex items-center justify-center transition-colors duration-200">+</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renderStars(score) {
+            const fullStars = Math.floor(score);
+            const hasHalfStar = score % 1 !== 0;
+            const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+
+            const starSVG = (fillColor) => `<svg class="w-5 h-5 fill-current ${fillColor}" viewBox="0 0 24 24"><path d="M12 2l3.09 6.32L22 9.27l-5 4.87 1.18 6.88L12 17.27l-6.18 3.25L7 14.14l-5-4.87 7.91-1.09z" /></svg>`;
+            const halfStarSVG = `<svg class="w-5 h-5 fill-current text-yellow-400" viewBox="0 0 24 24"><path d="M12 2l3.09 6.32L22 9.27l-5 4.87 1.18 6.88L12 17.27z" /></svg>`;
+            
+            let starsHTML = '';
+            for (let i = 0; i < fullStars; i++) starsHTML += starSVG('text-yellow-400');
+            if (hasHalfStar) starsHTML += halfStarSVG;
+            for (let i = 0; i < emptyStars; i++) starsHTML += starSVG('text-gray-500');
+
+            return `<div class="flex items-center">${starsHTML}</div>`;
+        }
+
+        function getResourceStatus(resource, count) {
+            switch (resource) {
+                case 'beds':
+                    if (count > 40) return { status: 'High', color: 'bg-green-500' };
+                    if (count > 20) return { status: 'Medium', color: 'bg-yellow-500' };
+                    return { status: 'Low', color: 'bg-red-500' };
+                case 'doctors':
+                    if (count > 15) return { status: 'High', color: 'bg-green-500' };
+                    if (count > 8) return { status: 'Medium', color: 'bg-yellow-500' };
+                    return { status: 'Low', color: 'bg-red-500' };
+                case 'equipment':
+                    if (count > 7) return { status: 'High', color: 'bg-green-500' };
+                    if (count > 4) return { status: 'Medium', color: 'bg-yellow-500' };
+                    return { status: 'Low', color: 'bg-red-500' };
+                default:
+                    return { status: 'Unknown', color: 'bg-gray-400' };
+            }
+        }
+
+        function getFilteredAndSortedHospitals() {
+            let filteredHospitals = [...hospitals];
+            const specialtyFilter = document.getElementById('specialty-filter').value;
+            const sizeFilter = document.getElementById('size-filter').value;
+            const ratingFilter = document.getElementById('rating-filter').value;
+            const sortOrder = document.getElementById('sort-order').value;
+
+            if (specialtyFilter !== 'All') {
+                filteredHospitals = filteredHospitals.filter(h => h.specialty === specialtyFilter);
+            }
+            if (sizeFilter !== 'All') {
+                filteredHospitals = filteredHospitals.filter(h => h.size === sizeFilter);
+            }
+            if (ratingFilter !== 'All') {
+                filteredHospitals = filteredHospitals.filter(h => h.rating === ratingFilter);
+            }
+
+            filteredHospitals.sort((a, b) => {
+                switch (sortOrder) {
+                    case 'shortestWait':
+                        return a.waitTimeMinutes - b.waitTimeMinutes;
+                    case 'longestWait':
+                        return b.waitTimeMinutes - a.waitTimeMinutes;
+                    case 'leastBusy':
+                        const aBusyScore = (a.resources.beds || 0) + (a.resources.doctors || 0) + (a.resources.equipment || 0);
+                        const bBusyScore = (b.resources.beds || 0) + (b.resources.doctors || 0) + (b.resources.equipment || 0);
+                        return bBusyScore - aBusyScore;
+                    case 'highestRated':
+                        const aRating = a.rating === 'Level I Trauma' ? 2 : 1;
+                        const bRating = b.rating === 'Level I Trauma' ? 2 : 1;
+                        return bRating - aRating;
+                    default:
+                        return 0;
+                }
+            });
+
+            return filteredHospitals;
+        }
+
+        async function updateCount(hospitalId, resource, change) {
+            if (!db) return;
+            try {
+                const hospitalDocRef = doc(db, `artifacts/${appId}/public/data/hospitals`, hospitalId);
+                const docSnap = await getDoc(hospitalDocRef);
+                if (docSnap.exists()) {
+                    const currentCount = docSnap.data().resources[resource];
+                    const newCount = Math.max(0, currentCount + change);
+                    await updateDoc(hospitalDocRef, {
+                        [`resources.${resource}`]: newCount
+                    });
+                }
+            } catch (error) {
+                console.error("Error updating resource count:", error);
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('specialty-filter').addEventListener('change', renderHospitalCards);
+            document.getElementById('size-filter').addEventListener('change', renderHospitalCards);
+            document.getElementById('rating-filter').addEventListener('change', renderHospitalCards);
+            document.getElementById('sort-order').addEventListener('change', renderHospitalCards);
+
+            document.getElementById('hospital-cards-container').addEventListener('click', (e) => {
+                const button = e.target.closest('button');
+                if (button) {
+                    const hospitalId = button.dataset.hospitalId;
+                    const resource = button.dataset.resource;
+                    const change = parseInt(button.dataset.change, 10);
+                    updateCount(hospitalId, resource, change);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
