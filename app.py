@@ -157,6 +157,9 @@ def home():
 def map_page():
     return render_template("map.html")
 
+@app.route("/dash")
+def dash():
+    return render_template("dash.html")
 
 # =========================
 # Run the App

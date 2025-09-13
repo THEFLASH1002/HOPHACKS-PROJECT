@@ -126,7 +126,7 @@ body, html {
     <div class="hidden md:flex space-x-8 fade-in-delayed">
       <a href="{{ url_for('home') }}" class="hover:text-purple-400 transition-colors duration-300">Home</a>
       <a href="{{ url_for('map_page') }}" class="hover:text-purple-400 transition-colors duration-300">Map</a>
-      <a href="#projects" class="hover:text-purple-400 transition-colors duration-300">Projects</a>
+      <a href="{{ url_for('dash') }}"  class="hover:text-purple-400 transition-colors duration-300">Dashboard</a>
       <a href="#contact" class="hover:text-purple-400 transition-colors duration-300">Contact</a>
     </div>
   </div>
@@ -155,19 +155,19 @@ body, html {
   <!-- Feature Cards -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16 max-w-6xl mx-auto fade-in-delayed">
     <div class="glass-effect rounded-2xl p-8 text-center hover:scale-105 transition-all duration-300 cursor-pointer">
-      <div class="text-4xl mb-4">🚀</div>
-      <h3 class="text-xl font-bold mb-3 text-purple-400">Innovation</h3>
-      <p class="text-gray-300">Pushing boundaries with cutting-edge technology and creative solutions.</p>
+      <div class="text-4xl mb-4">🗺️</div>
+      <h3 class="text-xl font-bold mb-3 text-purple-400">Navigate</h3>
+      <p class="text-gray-300">Instantly visualize traffic and crime hotspots to find the fastest, safest routes for ambulances.</p>
     </div>
     <div class="glass-effect rounded-2xl p-8 text-center hover:scale-105 transition-all duration-300 cursor-pointer">
-      <div class="text-4xl mb-4">✨</div>
-      <h3 class="text-xl font-bold mb-3 text-blue-400">Design</h3>
-      <p class="text-gray-300">Beautiful, intuitive interfaces that captivate and engage users.</p>
+      <div class="text-4xl mb-4">🏥</div>
+      <h3 class="text-xl font-bold mb-3 text-blue-400">Locate</h3>
+      <p class="text-gray-300">Discover hospitals, their specializations, and live availability to make informed patient care decisions.</p>
     </div>
     <div class="glass-effect rounded-2xl p-8 text-center hover:scale-105 transition-all duration-300 cursor-pointer">
-      <div class="text-4xl mb-4">⚡</div>
-      <h3 class="text-xl font-bold mb-3 text-pink-400">Performance</h3>
-      <p class="text-gray-300">Lightning-fast experiences that work seamlessly across all devices.</p>
+      <div class="text-4xl mb-4">🤖</div>
+      <h3 class="text-xl font-bold mb-3 text-pink-400">Assist</h3>
+      <p class="text-gray-300">Get real time guidance from our intelligent chatbot for hospital info and emergency support.</p>
     </div>
   </div>
 </main>
