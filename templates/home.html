@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive 3D Homepage</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+}
+
+#spline-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -10;
+}
+
+.fade-in {
+  opacity: 0;
+  transform: translateY(30px);
+  animation: fadeInUp 1.2s ease-out forwards;
+}
+
+.fade-in-delayed {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeInUp 1s ease-out 0.5s forwards;
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.float-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+.glass-effect {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glow-text {
+  text-shadow: 0 0 20px rgba(147, 51, 234, 0.5), 0 0 40px rgba(147, 51, 234, 0.3);
+}
+
+.interactive-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: linear-gradient(45deg, #8b5cf6, #06b6d4);
+  border-radius: 50%;
+  opacity: 0.8;
+  animation: particleFloat 4s linear infinite;
+}
+
+@keyframes particleFloat {
+  0% {
+    transform: translateY(100vh) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  90% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(-20px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.button-glow {
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.5);
+  transition: all 0.3s ease;
+}
+
+.button-glow:hover {
+  box-shadow: 0 0 30px rgba(37, 99, 235, 0.8), 0 0 60px rgba(37, 99, 235, 0.4);
+  transform: translateY(-2px);
+}
+</style>
+</head>
+<body class="bg-gray-900 text-white">
+
+<!-- Spline Background -->
+<div id="spline-background">
+  <iframe 
+    src="https://my.spline.design/visualicons-oTyqgRA4T1ZU5w1vPZ4YPTEE/" 
+    frameborder="0" 
+    width="100%" 
+    height="100%" 
+    style="pointer-events: none;"
+  ></iframe>
+</div>
+
+<!-- Floating Particles -->
+<div id="particles-container"></div>
+
+<!-- Navigation -->
+<nav class="fixed top-0 left-0 right-0 z-50 p-6">
+  <div class="flex justify-between items-center max-w-7xl mx-auto">
+    <div class="text-2xl font-bold glow-text fade-in">AuraMed</div>
+    <div class="hidden md:flex space-x-8 fade-in-delayed">
+      <a href="#" class="hover:text-purple-400 transition-colors duration-300">Home</a>
+      <a href="#" class="hover:text-purple-400 transition-colors duration-300">About</a>
+      <a href="#" class="hover:text-purple-400 transition-colors duration-300">Projects</a>
+      <a href="#" class="hover:text-purple-400 transition-colors duration-300">Contact</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="relative z-10 flex flex-col items-center justify-center min-h-screen p-8">
+  <div class="text-center glass-effect rounded-3xl p-12 max-w-4xl mx-auto shadow-2xl fade-in float-animation">
+    <h1 class="text-5xl sm:text-6xl md:text-7xl font-extrabold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-500 to-blue-500 glow-text">
+      Welcome to the Future
+    </h1>
+    <p class="text-xl sm:text-2xl text-gray-200 mb-8 max-w-3xl mx-auto leading-relaxed">
+      Experience cutting-edge design with interactive 3D environments. 
+      Where creativity meets technology to create unforgettable digital experiences.
+    </p>
+    <div class="flex flex-col sm:flex-row gap-4 justify-center items-center fade-in-delayed">
+      <button class="px-10 py-4 text-lg font-semibold text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-full button-glow transition-all duration-300 hover:scale-105">
+        Explore Projects
+      </button>
+      <button class="px-10 py-4 text-lg font-semibold text-purple-400 border-2 border-purple-400 rounded-full hover:bg-purple-400 hover:text-white transition-all duration-300">
+        Watch Demo
+      </button>
+    </div>
+  </div>
+
+  <!-- Feature Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16 max-w-6xl mx-auto fade-in-delayed">
+    <div class="glass-effect rounded-2xl p-8 text-center hover:scale-105 transition-all duration-300 cursor-pointer">
+      <div class="text-4xl mb-4">🚀</div>
+      <h3 class="text-xl font-bold mb-3 text-purple-400">Innovation</h3>
+      <p class="text-gray-300">Pushing boundaries with cutting-edge technology and creative solutions.</p>
+    </div>
+    <div class="glass-effect rounded-2xl p-8 text-center hover:scale-105 transition-all duration-300 cursor-pointer">
+      <div class="text-4xl mb-4">✨</div>
+      <h3 class="text-xl font-bold mb-3 text-blue-400">Design</h3>
+      <p class="text-gray-300">Beautiful, intuitive interfaces that captivate and engage users.</p>
+    </div>
+    <div class="glass-effect rounded-2xl p-8 text-center hover:scale-105 transition-all duration-300 cursor-pointer">
+      <div class="text-4xl mb-4">⚡</div>
+      <h3 class="text-xl font-bold mb-3 text-pink-400">Performance</h3>
+      <p class="text-gray-300">Lightning-fast experiences that work seamlessly across all devices.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+// Floating particles animation
+function createFloatingParticle() {
+  const particle = document.createElement('div');
+  particle.className = 'interactive-particle';
+  particle.style.left = Math.random() * window.innerWidth + 'px';
+  particle.style.animationDelay = Math.random() * 4 + 's';
+  particle.style.animationDuration = (Math.random() * 3 + 2) + 's';
+  
+  document.getElementById('particles-container').appendChild(particle);
+  
+  setTimeout(() => {
+    particle.remove();
+  }, 6000);
+}
+
+// Initialize floating particles
+document.addEventListener('DOMContentLoaded', () => {
+  setInterval(createFloatingParticle, 500);
+});
+
+// Button ripple effect
+document.querySelectorAll('button').forEach(button => {
+  button.addEventListener('click', (e) => {
+    const ripple = document.createElement('span');
+    ripple.style.position = 'absolute';
+    ripple.style.borderRadius = '50%';
+    ripple.style.background = 'rgba(255, 255, 255, 0.3)';
+    ripple.style.transform = 'scale(0)';
+    ripple.style.animation = 'ripple 0.6s linear';
+    ripple.style.left = (e.clientX - e.target.offsetLeft) + 'px';
+    ripple.style.top = (e.clientY - e.target.offsetTop) + 'px';
+    ripple.style.width = ripple.style.height = '20px';
+    
+    e.target.style.position = 'relative';
+    e.target.appendChild(ripple);
+    
+    setTimeout(() => {
+      ripple.remove();
+    }, 600);
+  });
+});
+
+// Ripple animation CSS
+const style = document.createElement('style');
+style.textContent = `
+@keyframes ripple {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+`;
+document.head.appendChild(style);
+</script>
+
+</body>
+</html>
