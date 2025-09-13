@@ -1,40 +1,37 @@
 from flask import Flask, render_template, jsonify
 import pandas as pd
 import json
-import random
 
 app = Flask(__name__)
 
-# Load hospital data (CSV)
-hospitals = pd.read_csv("data/hospital.csv")
+# Load and process neighborhoods + crime data
+def compute_heat_scores():
+    # Load crime data
+    crime_df = pd.read_csv("data/crime.csv")
 
-# Convert hospital coords to GeoJSON-like dict
-hospital_points = [
-    {
-        "type": "Feature",
-        "geometry": {
-            "type": "Point",
-            "coordinates": [row["X"] / 100000, row["Y"] / 100000]  # normalize scaling
-        },
-        "properties": {
-            "name": row["name"],
-            "address": row["address"],
-            "city": row["city"],
-            "state": row["state"],
-            "zipcode": row["zipcode"],
-            "occupancy": random.randint(50, 100)  # simulate hospital occupancy %
-        }
-    }
-    for _, row in hospitals.iterrows()
-]
+    # Normalize CSV neighborhood names
+    crime_df["Neighborhood_norm"] = crime_df["Neighborhood"].str.strip().str.lower()
 
-# Load neighborhoods (GeoJSON as plain JSON)
-with open("data/neighborhood.geojson", "r") as f:
-    neighborhoods = json.load(f)
+    # Count crimes by normalized neighborhood
+    crime_counts = crime_df["Neighborhood_norm"].value_counts().to_dict()
 
-# Simulate EMS demand heat by neighborhood
-for feature in neighborhoods["features"]:
-    feature["properties"]["heat_score"] = random.randint(1, 100)
+    # Load GeoJSON neighborhoods
+    with open("data/neighborhood.geojson", "r") as f:
+        neighborhoods = json.load(f)
+
+    # Attach crime counts
+    for feature in neighborhoods["features"]:
+        props = feature["properties"]
+
+        # Get neighborhood name from GeoJSON
+        name = props.get("Name") or props.get("Neighborhood") or "Unknown"
+        name_norm = str(name).strip().lower()
+
+        # Attach original + crime count
+        props["name"] = name
+        props["crime_count"] = int(crime_counts.get(name_norm, 0))
+
+    return neighborhoods
 
 
 @app.route("/")
@@ -42,17 +39,17 @@ def index():
     return render_template("map.html")
 
 
-@app.route("/api/hospitals")
-def get_hospitals():
-    return jsonify({
-        "type": "FeatureCollection",
-        "features": hospital_points
-    })
-
-
 @app.route("/api/neighborhoods")
 def get_neighborhoods():
+    neighborhoods = compute_heat_scores()
     return jsonify(neighborhoods)
+
+
+# Optional debug endpoint to see counts quickly
+@app.route("/api/debug_counts")
+def debug_counts():
+    crime_df = pd.read_csv("data/crime.csv")
+    return crime_df["Neighborhood"].value_counts().to_dict()
 
 
 if __name__ == "__main__":

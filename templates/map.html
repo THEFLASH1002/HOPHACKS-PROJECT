@@ -1,231 +1,167 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Baltimore EMS Demand Dashboard</title>
-  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet" />
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+  <title>Baltimore Crime Heatmap + Traffic</title>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
   <style>
     body, html { margin:0; padding:0; height:100%; }
     #map { position:absolute; top:0; bottom:0; width:100%; }
-    .legend { position:absolute; right:10px; top:10px; background:white; padding:8px; font-family: Arial; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.2);}
-    .controls { position:absolute; left:10px; top:10px; background:white; padding:8px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.2);}
+    .mapboxgl-popup {
+      max-width: 300px;
+      font: 14px/20px "Helvetica Neue", Arial, Helvetica, sans-serif;
+    }
+    .controls { 
+      position:absolute; 
+      left:10px; 
+      top:10px; 
+      background:white; 
+      padding:8px; 
+      border-radius:6px; 
+      box-shadow:0 2px 6px rgba(0,0,0,0.2);
+      z-index: 1;
+    }
+    .controls button {
+      display:block;
+      margin-bottom:6px;
+    }
   </style>
 </head>
 <body>
+
 <div id="map"></div>
 
 <div class="controls">
-  <div><strong>Time</strong>: <span id="timeLabel">now</span></div>
-  <button id="refreshBtn">Refresh Data</button>
-  <button id="toggleTraffic">Toggle Traffic</button>
-</div>
-
-<div class="legend" id="legend">
-  <div><strong>Demand Heat</strong></div>
-  <div style="display:flex; gap:4px; margin-top:6px;">
-    <div style="width:20px; height:10px; background:#2DC937"></div><div>Low</div>
-    <div style="width:20px; height:10px; background:#FFCC00; margin-left:8px;"></div><div>Moderate</div>
-    <div style="width:20px; height:10px; background:#FF7B00; margin-left:8px;"></div><div>High</div>
-    <div style="width:20px; height:10px; background:#D7263D; margin-left:8px;"></div><div>Critical</div>
-  </div>
+  <button id="toggleCrimeBtn">Toggle Crime Map</button>
+  <button id="toggleTrafficBtn">Toggle Traffic</button>
 </div>
 
 <script>
-  mapboxgl.accessToken = "pk.eyJ1IjoidGhlZmxhc2gxMDAyIiwiYSI6ImNtZmYwMjZuODBkN2UybXExaTM2ZGl0d3cifQ.j520k_qlveWfMAYCCu5IqQ"; // replace
-  const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/light-v11',
-    center: [-76.6122, 39.2904],
-    zoom: 12.5,
-    pitch: 55,
-    bearing: -20
+mapboxgl.accessToken = "pk.eyJ1IjoidGhlZmxhc2gxMDAyIiwiYSI6ImNtZmYwMjZuODBkN2UybXExaTM2ZGl0d3cifQ.j520k_qlveWfMAYCCu5IqQ"; // replace with your token
+
+const map = new mapboxgl.Map({
+  container: "map",
+  style: "mapbox://styles/mapbox/streets-v12",
+  center: [-76.6122, 39.2904], // Baltimore
+  zoom: 11,
+  pitch: 45,
+  bearing: -17.6
+});
+
+map.on("load", () => {
+  // Add 3D buildings
+  map.addLayer({
+    id: "3d-buildings",
+    source: "composite",
+    "source-layer": "building",
+    filter: ["==", "extrude", "true"],
+    type: "fill-extrusion",
+    minzoom: 15,
+    paint: {
+      "fill-extrusion-color": "#aaa",
+      "fill-extrusion-height": ["get", "height"],
+      "fill-extrusion-base": ["get", "min_height"],
+      "fill-extrusion-opacity": 0.6
+    }
   });
 
-  // controls
-  map.addControl(new mapboxgl.NavigationControl());
+  // Load crime neighborhood data
+  fetch("/api/neighborhoods")
+    .then(res => res.json())
+    .then(data => {
+      map.addSource("neighborhoods", { type: "geojson", data });
 
-  let trafficOn = false;
-
-  async function loadDataAndRender(){
-    const [neighRes, hospRes, incRes] = await Promise.all([
-      fetch("/api/neighborhoods").then(r => r.json()),
-      fetch("/api/hospitals").then(r => r.json()),
-      fetch("/api/incidents").then(r => r.json())
-    ]);
-    renderNeighborhoods(neighRes);
-    renderHospitals(hospRes);
-    renderIncidents(incRes);
-  }
-
-  // neighborhoods layer
-  function renderNeighborhoods(geojson){
-    if(map.getSource('neigh')) {
-      map.getSource('neigh').setData(geojson);
-      return;
-    }
-    map.addSource('neigh', { type: 'geojson', data: geojson });
-
-    map.addLayer({
-      id: 'neigh-fill',
-      type: 'fill-extrusion',
-      source: 'neigh',
-      paint: {
-        'fill-extrusion-color': [
-          'interpolate', ['linear'], ['get', 'heat'],
-          0, '#2DC937',
-          0.25, '#FFCC00',
-          0.5, '#FF7B00',
-          0.75, '#D7263D'
-        ],
-        'fill-extrusion-height': ['*', ['get', 'heat'], 120],
-        'fill-extrusion-opacity': 0.7
-      }
-    });
-
-    // click popup
-    map.on('click', 'neigh-fill', (e) => {
-      const p = e.features[0].properties;
-      new mapboxgl.Popup()
-        .setLngLat(e.lngLat)
-        .setHTML(`<strong>${p.name || p.neigh || 'Neighborhood'}</strong><br/>
-                  Heat: ${(parseFloat(p.heat)*100).toFixed(0)}%<br/>
-                  Category: ${p.category || ''}<br/>
-                  Incident score: ${p.incident_score || 0}`)
-        .addTo(map);
-    });
-
-    map.on('mouseenter', 'neigh-fill', () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', 'neigh-fill', () => map.getCanvas().style.cursor = '');
-  }
-
-  // hospitals layer
-  function renderHospitals(list){
-    const features = list.map(h => ({
-      type:'Feature',
-      geometry: { type:'Point', coordinates:[h.lon, h.lat] },
-      properties: h
-    }));
-    const fc = { type:'FeatureCollection', features };
-    if(map.getSource('hospitals')){
-      map.getSource('hospitals').setData(fc);
-    } else {
-      map.addSource('hospitals', { type: 'geojson', data: fc });
+      // Crime heatmap
       map.addLayer({
-        id: 'hosp-points',
-        type: 'circle',
-        source: 'hospitals',
+        id: "crime-heat",
+        type: "fill",
+        source: "neighborhoods",
         paint: {
-          'circle-radius': 8,
-          'circle-color': [
-            'interpolate',['linear'], ['get', 'occupied_pct'],
-            0, '#2DC937',
-            0.5, '#FFCC00',
-            0.75, '#FF7B00',
-            0.9, '#D7263D'
-          ]
+          "fill-color": [
+            "interpolate",
+            ["linear"], ["get", "crime_count"],
+            0, "#2DC937",
+            50, "#FFCC00",
+            200, "#D7263D"
+          ],
+          "fill-opacity": 0.6
         }
       });
-      map.on('click','hosp-points', e=>{
-        const p = e.features[0].properties;
-        new mapboxgl.Popup().setLngLat(e.lngLat)
-          .setHTML(`<strong>${p.name}</strong><br/>Occupied: ${p.occupied}/${p.capacity}`)
+
+      // Borders
+      map.addLayer({
+        id: "neighborhood-borders",
+        type: "line",
+        source: "neighborhoods",
+        paint: { "line-color": "#000", "line-width": 1 }
+      });
+
+      // Popup
+      const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
+      map.on("mousemove", "crime-heat", (e) => {
+        if (!e.features.length) return;
+        const feature = e.features[0];
+        const name = feature.properties.name;
+        const crimeCount = feature.properties.crime_count;
+
+        popup
+          .setLngLat(e.lngLat)
+          .setHTML(`<strong>${name}</strong><br/>Crimes: ${crimeCount}`)
           .addTo(map);
       });
-    }
-    features.forEach(f=>{
-      const p = f.properties;
-      p.occupied = Number(p.occupied);
-      p.capacity = Number(p.capacity);
-      p.occupied_pct = p.capacity ? p.occupied / p.capacity : 0;
-    });
-    map.getSource('hospitals').setData(fc);
-  }
+      map.on("mouseleave", "crime-heat", () => popup.remove());
 
-  // incidents layer
-  function renderIncidents(inc){
-    const features = inc.map(i=>({
-      type:'Feature',
-      geometry: { type:'Point', coordinates:[i.lon, i.lat] },
-      properties: i
-    }));
-    const fc = { type:'FeatureCollection', features };
-    if(map.getSource('incidents')){
-      map.getSource('incidents').setData(fc);
-    } else {
-      map.addSource('incidents', { type:'geojson', data: fc });
-      map.addLayer({
-        id: 'inc-points',
-        type: 'circle',
-        source: 'incidents',
-        paint: {
-          'circle-radius': ['interpolate',['linear'], ['get','severity'], 1,4,4,8],
-          'circle-color': ['match', ['get','severity'], 4, '#D7263D', 3, '#FF7B00', 2,'#FFCC00', '#2DC937']
+      // Toggle crime layers
+      document.getElementById('toggleCrimeBtn').addEventListener('click', () => {
+        const visibilityHeat = map.getLayoutProperty('crime-heat', 'visibility');
+        const visibilityBorders = map.getLayoutProperty('neighborhood-borders', 'visibility');
+
+        if (visibilityHeat === 'visible') {
+          map.setLayoutProperty('crime-heat', 'visibility', 'none');
+          map.setLayoutProperty('neighborhood-borders', 'visibility', 'none');
+        } else {
+          map.setLayoutProperty('crime-heat', 'visibility', 'visible');
+          map.setLayoutProperty('neighborhood-borders', 'visibility', 'visible');
         }
       });
-    }
-  }
+    });
 
-  // toggle traffic
-  function toggleTrafficLayer() {
-    if(!trafficOn){
-      if(!map.getSource('traffic')){
-        map.addSource('traffic', { type: 'vector', url: 'mapbox://mapbox.mapbox-traffic-v1' });
-        map.addLayer({
-          id: 'traffic-lines',
-          type: 'line',
-          source: 'traffic',
-          'source-layer': 'traffic',
-          paint: {
-            'line-color': [
-              'match',
-              ['get','congestion'],
-              'low','#2DC937',
-              'moderate','#FFCC00',
-              'heavy','#FF7B00',
-              'severe','#D7263D',
-              '#999'
-            ],
-            'line-width': 3
-          }
-        });
-      } else {
-        map.setLayoutProperty('traffic-lines','visibility','visible');
-      }
-      trafficOn = true;
-    } else {
-      if(map.getLayer('traffic-lines')) map.setLayoutProperty('traffic-lines','visibility','none');
-      trafficOn = false;
-    }
-  }
-
-  // add 3D buildings
-  function add3DBuildings(){
-    map.addLayer({
-      id: '3d-buildings',
-      source: 'composite',
-      'source-layer': 'building',
-      filter: ['==','extrude','true'],
-      type: 'fill-extrusion',
-      minzoom: 15,
-      paint: {
-        'fill-extrusion-color': '#aaa',
-        'fill-extrusion-height': ['get','height'],
-        'fill-extrusion-base': ['get','min_height'],
-        'fill-extrusion-opacity': 0.6
-      }
-    }, 'waterway-label'); // place below labels
-  }
-
-  // wire up buttons
-  document.getElementById('refreshBtn').addEventListener('click', ()=> loadDataAndRender());
-  document.getElementById('toggleTraffic').addEventListener('click', ()=> toggleTrafficLayer());
-
-  map.on('load', () => {
-    loadDataAndRender();
-    add3DBuildings();
+  // Add traffic source + layers
+  map.addSource("traffic", {
+    type: "vector",
+    url: "mapbox://mapbox.mapbox-traffic-v1"
   });
+
+  map.addLayer({
+    id: "traffic",
+    type: "line",
+    source: "traffic",
+    "source-layer": "traffic",
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: {
+      "line-color": [
+        "case",
+        ["==", ["get", "congestion"], "low"], "#2DC937",
+        ["==", ["get", "congestion"], "moderate"], "#FFCC00",
+        ["==", ["get", "congestion"], "heavy"], "#FF6600",
+        ["==", ["get", "congestion"], "severe"], "#D7263D",
+        "#999"
+      ],
+      "line-width": 2
+    }
+  });
+
+  // Toggle traffic
+  document.getElementById('toggleTrafficBtn').addEventListener('click', () => {
+    const visibilityTraffic = map.getLayoutProperty('traffic', 'visibility');
+    if (visibilityTraffic === 'visible') {
+      map.setLayoutProperty('traffic', 'visibility', 'none');
+    } else {
+      map.setLayoutProperty('traffic', 'visibility', 'visible');
+    }
+  });
+});
 </script>
 </body>
 </html>
