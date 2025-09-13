@@ -3,23 +3,100 @@
 <head>
   <meta charset="utf-8">
   <title>Baltimore Crime Heatmap + Traffic + Hospitals + Hotspots</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <style>
-    body, html { margin:0; padding:0; height:100%; }
+    body, html { margin:0; padding:0; height:100%; font-family: "Helvetica Neue", Arial, Helvetica, sans-serif; }
     #map { position:absolute; top:0; bottom:0; width:100%; }
     .mapboxgl-popup { max-width: 300px; font: 14px/20px "Helvetica Neue", Arial, Helvetica, sans-serif; }
     .controls {
-      position:absolute; left:10px; top:10px; background:white; padding:8px; border-radius:6px;
-      box-shadow:0 2px 6px rgba(0,0,0,0.2); z-index: 2;
+      position:absolute; left:10px; top:10px; background:rgba(255, 255, 255, 0.85); padding:10px; border-radius:10px;
+      box-shadow:0 4px 12px rgba(0,0,0,0.25); z-index: 2;
+      display: flex; flex-direction: column;
     }
-    .controls button { display:block; margin-bottom:6px; width:170px; padding:6px; }
+    .controls button {
+      display:block; margin-bottom:8px; width:180px; padding:10px;
+      border: 1px solid #ccc; border-radius: 6px;
+      background-color: #f0f0f0; cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+      font-weight: bold;
+    }
+    .controls button:hover {
+      background-color: #e0e0e0;
+      transform: translateY(-1px);
+    }
+    .controls button:active {
+      transform: translateY(1px);
+    }
     .hospital-marker {
       width: 44px; height: 44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-      font-size: 22px; font-weight: 700; color: #fff; border: 2px solid #fff; pointer-events: auto;
+      font-size: 24px; font-weight: 700; color: #fff; border: 3px solid #fff; pointer-events: auto;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    .statistic-container {
+      position: absolute;
+      left: 10px;
+      top: 350px;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .statistic-box {
+      background: rgba(255, 255, 255, 0.7);
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      width: 180px;
+      transition: all 0.2s ease-in-out;
+      border: 1px solid rgba(212, 212, 212, 0.5);
+    }
+    .trauma-level-box {
+      position: absolute;
+      top: 10px;
+      right: 60px;
+      width: 150px;
+      display: none;
+    }
+    .statistic-box:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    }
+    .statistic-box h4 {
+      margin-top: 0;
+      margin-bottom: 8px;
+      font-weight: normal;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .statistic-box p {
+      font-size: 24px;
+      font-weight: 600;
+      color: #000;
+      margin: 0;
+    }
+    .color-legend {
+      display: flex;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+    .color-swatch {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+    #occupancy-timer {
+      font-size: 14px;
+      margin-top: 10px;
+      font-weight: 400;
+      color: #666;
     }
   </style>
 </head>
@@ -31,6 +108,39 @@
   <button id="toggleTrafficBtn">Toggle Traffic</button>
   <button id="toggleHospitalsBtn">Toggle Hospitals</button>
   <button id="toggleHotspotsBtn">Toggle Hotspots</button>
+  <button id="runSimulationBtn">Run Ambulance Simulation</button>
+</div>
+
+<div id="traumaLevelBox" class="statistic-box trauma-level-box">
+  <h4>🩸 Trauma Level</h4>
+  <p id="traumaLevelDisplay">N/A</p>
+</div>
+
+<div class="statistic-container">
+    <div id="callCounterBox" class="statistic-box">
+      <h4>📞 911 Calls Today</h4>
+      <p>42</p>
+    </div>
+    <div id="activeAmbulancesBox" class="statistic-box">
+      <h4>🚑 Active Ambulances</h4>
+      <p>3</p>
+    </div>
+    <div id="legendBox" class="statistic-box">
+        <h4>Occupancy Key</h4>
+        <div class="color-legend">
+          <span class="color-swatch" style="background-color: #2DC937;"></span>
+          <p style="margin: 0;">Below 70%</p>
+        </div>
+        <div class="color-legend">
+          <span class="color-swatch" style="background-color: #FFCC00;"></span>
+          <p style="margin: 0;">70% - 85%</p>
+        </div>
+        <div class="color-legend">
+          <span class="color-swatch" style="background-color: #D7263D;"></span>
+          <p style="margin: 0;">Above 85%</p>
+        </div>
+        <p id="occupancy-timer"></p>
+    </div>
 </div>
 
 <script>
@@ -46,12 +156,220 @@ const map = new mapboxgl.Map({
   antialias: true
 });
 
-let hospitalMarkers = [];
+let hospitalData = []; 
 let hospitalsVisible = true;
 let hotspotsAdded = false;
 let hotspotsVisible = false;
+let crimeHotspots = null;
+let traumaLevel = null;
+
+let ambulanceAnimationActive = false;
+let ambulanceLayerInstance = null;
+let ambulanceState = {
+  route: null,
+  positionIndex: 0,
+  speed: 0.0001,
+  currentPosition: [-76.6122, 39.2904],
+};
+let userIsInteracting = false;
+let timeUntilNextUpdate = 60; 
+
+// Event listeners to detect user interaction
+map.on('mousedown', () => userIsInteracting = true);
+map.on('mouseup', () => setTimeout(() => userIsInteracting = false, 500));
+map.on('touchstart', () => userIsInteracting = true);
+map.on('touchend', () => setTimeout(() => userIsInteracting = false, 500));
+map.on('wheel', () => userIsInteracting = true);
+
+// Hotspot locations for ambulances
+const hotspotLocations = [
+    [-76.61, 39.29], 
+    [-76.63, 39.31], 
+    [-76.59, 39.27] 
+];
+
+function findBestHospital(startPoint, hospitals, traumaLevel) {
+    let bestHospital = null;
+    let minScore = Infinity;
+
+    hospitals.forEach(hospital => {
+        const hospitalCoords = hospital.coords;
+        const distance = turf.distance(turf.point(startPoint), turf.point(hospitalCoords), { units: 'kilometers' });
+        
+        let score = distance;
+
+        // If trauma level is low, factor in occupancy. Higher occupancy means a worse score.
+        // For a low trauma level (1-3), we prioritize less full hospitals.
+        // For a high trauma level (4-5), we prioritize distance, ignoring occupancy penalty.
+        if (traumaLevel < 4) {
+          score += distance * (hospital.occupancy / 100) * 2;
+        }
+
+        if (score < minScore) {
+            minScore = score;
+            bestHospital = hospitalCoords;
+        }
+    });
+
+    return bestHospital;
+}
+
+async function getRoute(start, end) {
+  const query = await fetch(
+    `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${start[0]},${start[1]};${end[0]},${end[1]}?steps=true&geometries=geojson&access_token=${mapboxgl.accessToken}`,
+    { method: "GET" }
+  );
+  const json = await query.json();
+  if (!json.routes || json.routes.length === 0) {
+    throw new Error("No route found.");
+  }
+  return json.routes[0].geometry.coordinates;
+}
+
+function animateAmbulance() {
+    if (!ambulanceAnimationActive || !ambulanceState.route) {
+        return;
+    }
+
+    const nextPoint = ambulanceState.route[ambulanceState.positionIndex + 1];
+    if (!nextPoint) {
+        console.log("Ambulance reached the hospital. Simulation complete.");
+        ambulanceAnimationActive = false;
+        map.getSource("route-line-source").setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] } });
+        return;
+    }
+
+    const currentPoint = ambulanceState.currentPosition;
+    const distance = Math.hypot(nextPoint[0] - currentPoint[0], nextPoint[1] - currentPoint[1]);
+    
+    if (distance < ambulanceState.speed) {
+        ambulanceState.positionIndex++;
+        ambulanceState.currentPoint = [...nextPoint];
+    } else {
+        const directionX = (nextPoint[0] - currentPoint[0]) / distance;
+        const directionY = (nextPoint[1] - currentPoint[1]) / distance;
+        currentPoint[0] += directionX * ambulanceState.speed;
+        currentPoint[1] += directionY * ambulanceState.speed;
+    }
+
+    const animatedAmbulance = ambulanceLayerInstance.ambulances[0];
+    if (animatedAmbulance) {
+        const newMercatorCoords = mapboxgl.MercatorCoordinate.fromLngLat(currentPoint, 0);
+        animatedAmbulance.position.x = newMercatorCoords.x;
+        animatedAmbulance.position.y = newMercatorCoords.y;
+        
+        const modelTransform = {
+            scale: newMercatorCoords.meterInMercatorCoordinateUnits()
+        };
+        const customScale = 50; 
+        animatedAmbulance.scale.set(
+            modelTransform.scale * customScale,
+            modelTransform.scale * customScale,
+            modelTransform.scale * customScale
+        );
+    }
+
+    // Only pan the map if the user is not interacting with it
+    if (!userIsInteracting) {
+        map.panTo(currentPoint, { duration: 0 });
+    }
+
+    map.triggerRepaint();
+    requestAnimationFrame(animateAmbulance);
+}
+
+function updateHospitalOccupancy() {
+    hospitalData.forEach(hospital => {
+        let newOccupancy;
+        // Make most hospitals full, around 75% chance
+        if (Math.random() < 0.75) {
+            newOccupancy = Math.floor(Math.random() * (100 - 86 + 1)) + 86;
+        } else {
+            newOccupancy = Math.floor(Math.random() * 101);
+        }
+
+        hospital.occupancy = newOccupancy;
+        
+        let newColor = "#2DC937";
+        if (newOccupancy >= 85) newColor = "#D7263D";
+        else if (newOccupancy >= 70) newColor = "#FFCC00";
+
+        const el = hospital.marker.getElement();
+        el.style.backgroundColor = newColor;
+
+        const popup = hospital.marker.getPopup();
+        if (popup) {
+            const popupHtml = `<strong>${hospital.name}</strong><br/>
+                ${hospital.address}<br/>
+                Occupancy: ${newOccupancy}%`;
+            popup.setHTML(popupHtml);
+        }
+    });
+    timeUntilNextUpdate = 60; // Reset timer after update
+}
+
+function updateTimerDisplay() {
+    const timerElement = document.getElementById('occupancy-timer');
+    if (timerElement) {
+        timerElement.textContent = `Next update in ${timeUntilNextUpdate} seconds`;
+        timeUntilNextUpdate--;
+    }
+}
+
+async function fetchHotspots() {
+  if (crimeHotspots) {
+    return crimeHotspots;
+  }
+  
+  const res = await fetch("/api/hotspots");
+  if (!res.ok) {
+    console.error("Failed to fetch /api/hotspots");
+    return null;
+  }
+  const points = await res.json();
+  if (!points || !points.features || points.features.length === 0) {
+    console.warn("No recent crime points to build hotspots.");
+    return null;
+  }
+
+  const bbox = turf.bbox(points);
+  const bboxPoly = turf.bboxPolygon(bbox);
+  const bufferedBbox = turf.buffer(bboxPoly, 1, { units: "kilometers" });
+  const cellSizeKm = 0.4;
+  const hexGrid = turf.hexGrid(turf.bbox(bufferedBbox), cellSizeKm, { units: "kilometers" });
+
+  hexGrid.features.forEach(hex => {
+    const ptsWithin = turf.pointsWithinPolygon(points, hex);
+    hex.properties = hex.properties || {};
+    hex.properties.count = (ptsWithin && ptsWithin.features) ? ptsWithin.features.length : 0;
+  });
+
+  const hexFiltered = {
+    type: "FeatureCollection",
+    features: hexGrid.features.filter(h => (h.properties && h.properties.count && h.properties.count >= 7))
+  };
+
+  crimeHotspots = hexFiltered;
+  return crimeHotspots;
+}
 
 map.on("load", () => {
+  map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+  map.addSource("route-line-source", {
+      type: "geojson",
+      data: { type: "Feature", geometry: { type: "LineString", coordinates: [] } }
+  });
+  map.addLayer({
+      id: "route-line",
+      type: "line",
+      source: "route-line-source",
+      paint: {
+          "line-color": "#0000ff",
+          "line-width": 4
+      }
+  });
+
   try {
     map.addLayer({
       id: "3d-buildings",
@@ -59,10 +377,10 @@ map.on("load", () => {
       "source-layer": "building",
       filter: ["==", "extrude", "true"],
       type: "fill-extrusion",
-      minzoom: 15,
+      minzoom: 13,
       paint: {
         "fill-extrusion-color": "#aaa",
-        "fill-extrusion-height": ["get", "height"],
+        "fill-extrusion-height": ["*", 1.2, ["get", "height"]],
         "fill-extrusion-base": ["get", "min_height"],
         "fill-extrusion-opacity": 0.6
       }
@@ -70,8 +388,7 @@ map.on("load", () => {
   } catch (e) {
     console.warn("3D buildings not added:", e);
   }
- 
-  // ADDED: Custom 3D layer for ambulance model
+  
   const ambulanceLayer = {
     id: "ambulance-3d-model",
     type: "custom",
@@ -80,66 +397,50 @@ map.on("load", () => {
       this.map = map;
       this.camera = new THREE.Camera();
       this.scene = new THREE.Scene();
-      this.ambulance = null;
- 
-      // Use GLTFLoader to load your model
+      this.ambulances = [];
+      ambulanceLayerInstance = this;
+
       const loader = new THREE.GLTFLoader();
       loader.load(
-        "/static/ambulance.glb",
+        "../static/ambulance.glb",
         (gltf) => {
-          this.ambulance = gltf.scene;
- 
-          // Set the model's position on the map
-          const modelOrigin = [-76.602, 39.290]; // Example location near a hotspot
-          const modelAltitude = 0;
-          const modelRotate = [Math.PI / 2, 0, 0];
- 
-          const modelAsMercatorCoordinate = mapboxgl.MercatorCoordinate.fromLngLat(
-            modelOrigin,
-            modelAltitude
-          );
- 
-          const modelTransform = {
-            translateX: modelAsMercatorCoordinate.x,
-            translateY: modelAsMercatorCoordinate.y,
-            translateZ: modelAsMercatorCoordinate.z,
-            rotateX: modelRotate[0],
-            rotateY: modelRotate[1],
-            rotateZ: modelRotate[2],
-            scale: modelAsMercatorCoordinate.meterInMercatorCoordinateUnits()
-          };
- 
-          const customScale = 30; // Adjust this value to change the size
-          this.ambulance.scale.set(
-            modelTransform.scale * customScale,
-            modelTransform.scale * customScale,
-            modelTransform.scale * customScale
-          );
-          this.ambulance.rotation.x = modelTransform.rotateX;
-          this.ambulance.rotation.y = modelTransform.rotateY;
-          this.ambulance.rotation.z = modelTransform.rotateZ;
-          this.ambulance.position.x = modelTransform.translateX;
-          this.ambulance.position.y = modelTransform.translateY;
-          this.ambulance.position.z = modelTransform.translateZ;
- 
-          this.scene.add(this.ambulance);
-          // ADDED: Create and add lights to the scene
-          const ambientLight = new THREE.AmbientLight(0xffffff, 1); // soft white light
-          this.scene.add(ambientLight);
+          const baseAmbulance = gltf.scene;
+          
+          hotspotLocations.forEach(coords => {
+            const newAmbulance = baseAmbulance.clone();
+            newAmbulance.rotation.x = -Math.PI / 2;
+            newAmbulance.rotation.z = Math.PI;
 
-          const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
-          directionalLight.position.set(0, -70, 100).normalize();
-          this.scene.add(directionalLight);
+            const mercatorCoords = mapboxgl.MercatorCoordinate.fromLngLat(coords, 0);
+            newAmbulance.position.x = mercatorCoords.x;
+            newAmbulance.position.y = mercatorCoords.y;
+            newAmbulance.position.z = mercatorCoords.z;
+
+            const modelTransform = { scale: mercatorCoords.meterInMercatorCoordinateUnits() };
+            const customScale = 100;
+            newAmbulance.scale.set(
+              modelTransform.scale * customScale,
+              modelTransform.scale * customScale,
+              modelTransform.scale * customScale
+            );
+
+            this.ambulances.push(newAmbulance);
+            this.scene.add(newAmbulance);
+          });
           this.map.triggerRepaint();
         },
-        (xhr) => {
-          // Optional: Progress callback
-        },
+        (xhr) => {},
         (error) => {
           console.error("An error happened while loading the 3D model:", error);
         }
       );
- 
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+      this.scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 3.0);
+      directionalLight.position.set(0, -70, 100).normalize();
+      this.scene.add(directionalLight);
+      
       this.renderer = new THREE.WebGLRenderer({
         canvas: map.getCanvas(),
         context: gl,
@@ -148,13 +449,8 @@ map.on("load", () => {
       this.renderer.autoClear = false;
     },
     render: function (gl, matrix) {
-      if (!this.ambulance) {
-        return;
-      }
- 
       const m = new THREE.Matrix4().fromArray(matrix);
       this.camera.projectionMatrix.copy(m);
- 
       this.renderer.state.reset();
       this.renderer.render(this.scene, this.camera);
       this.map.triggerRepaint();
@@ -163,9 +459,88 @@ map.on("load", () => {
       this.renderer.dispose();
     }
   };
- 
-  // Add the custom layer to the map
+  
   map.addLayer(ambulanceLayer, "waterway-label");
+
+  document.getElementById('runSimulationBtn').addEventListener('click', async () => {
+    if (ambulanceAnimationActive) {
+      ambulanceAnimationActive = false;
+      console.log("Ambulance simulation stopped.");
+      map.getSource("route-line-source").setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] } });
+      document.getElementById('traumaLevelBox').style.display = 'none';
+      return;
+    }
+
+    try {
+      // Show the trauma level box
+      document.getElementById('traumaLevelBox').style.display = 'block';
+
+      // Generate a random trauma level for this simulation
+      traumaLevel = Math.floor(Math.random() * 5) + 1;
+      document.getElementById('traumaLevelDisplay').textContent = traumaLevel;
+      
+      const hotspots = await fetchHotspots();
+      if (!hotspots || hotspots.features.length === 0) {
+        console.error("No crime hotspots found to start the simulation.");
+        return;
+      }
+      
+      const randomHotspotIndex = Math.floor(Math.random() * hotspots.features.length);
+      const randomHotspot = hotspots.features[randomHotspotIndex];
+      const startPoint = turf.pointOnFeature(randomHotspot).geometry.coordinates;
+      
+      const bestHospital = findBestHospital(startPoint, hospitalData, traumaLevel);
+
+      if (!bestHospital) {
+        console.error("No hospitals found to route to.");
+        return;
+      }
+
+      console.log(`Routing ambulance from a random hotspot at [${startPoint}] to best hospital at [${bestHospital}]`);
+      
+      const route = await getRoute(startPoint, bestHospital);
+
+      ambulanceLayerInstance.ambulances.forEach((amb, index) => {
+        if (index > 0) amb.visible = false;
+      });
+
+      ambulanceState.route = route;
+      ambulanceState.positionIndex = 0;
+      ambulanceState.currentPosition = [...route[0]];
+
+      map.getSource("route-line-source").setData({
+          type: "Feature",
+          geometry: {
+              type: "LineString",
+              coordinates: route
+          }
+      });
+
+      const animatedAmbulance = ambulanceLayerInstance.ambulances[0];
+      if (animatedAmbulance) {
+        animatedAmbulance.visible = true;
+        const initialCoords = mapboxgl.MercatorCoordinate.fromLngLat(ambulanceState.currentPosition, 0);
+        animatedAmbulance.position.x = initialCoords.x;
+        animatedAmbulance.position.y = initialCoords.y;
+        animatedAmbulance.position.z = initialCoords.z;
+        
+        const modelTransform = { scale: initialCoords.meterInMercatorCoordinateUnits() };
+        const customScale = 50;
+        animatedAmbulance.scale.set(
+            modelTransform.scale * customScale,
+            modelTransform.scale * customScale,
+            modelTransform.scale * customScale
+        );
+      }
+
+      ambulanceAnimationActive = true;
+      animateAmbulance();
+
+    } catch (err) {
+      console.error("Error running simulation:", err);
+    }
+  });
+
 
   fetch("/api/neighborhoods")
     .then(res => res.json())
@@ -224,11 +599,13 @@ map.on("load", () => {
   fetch("/api/hospitals")
     .then(res => res.json())
     .then(data => {
-      data.features.forEach(feature => {
+      hospitalData = data.features.map(feature => {
         const coords = feature.geometry && feature.geometry.coordinates;
         const props = feature.properties || {};
-        const occupancy = Number(props.occupancy || props.Occupancy || 0);
-
+        const name = props.name || props.NAME || props.Name || "Hospital";
+        const address = props.address || props.ADDRESS || "";
+        
+        const occupancy = Math.floor(Math.random() * 101);
         let color = "#2DC937";
         if (occupancy >= 85) color = "#D7263D";
         else if (occupancy >= 70) color = "#FFCC00";
@@ -238,21 +615,26 @@ map.on("load", () => {
         el.style.backgroundColor = color;
         el.innerHTML = "+";
 
-        const popupHtml = `<strong>${props.name || props.NAME || props.Name || "Hospital"}</strong><br/>
-          ${props.address || props.ADDRESS || ""}<br/>
+        const popupHtml = `<strong>${name}</strong><br/>
+          ${address}<br/>
           Occupancy: ${occupancy}%`;
+        
+        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(popupHtml);
 
         const marker = new mapboxgl.Marker({ element: el })
           .setLngLat(coords)
-          .setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(popupHtml))
+          .setPopup(popup)
           .addTo(map);
 
-        hospitalMarkers.push(marker);
+        return { marker, coords, occupancy, name, address };
       });
+      
+      setInterval(updateHospitalOccupancy, 60000);
+      setInterval(updateTimerDisplay, 1000);
 
       document.getElementById('toggleHospitalsBtn').addEventListener('click', () => {
         hospitalsVisible = !hospitalsVisible;
-        hospitalMarkers.forEach(m => hospitalsVisible ? m.addTo(map) : m.remove());
+        hospitalData.forEach(h => hospitalsVisible ? h.marker.addTo(map) : h.marker.remove());
       });
     })
     .catch(err => console.error("hospitals load error:", err));
@@ -290,54 +672,15 @@ map.on("load", () => {
     map.setLayoutProperty('traffic','visibility', vis === 'visible' ? 'none' : 'visible');
   });
 
-  const toggleHotspots = async () => {
+  document.getElementById('toggleHotspotsBtn').addEventListener('click', async () => {
+    const hotspots = await fetchHotspots();
+    if (!hotspots) return;
+
     if (!hotspotsAdded) {
-      const res = await fetch("/api/hotspots");
-      if (!res.ok) {
-        console.error("Failed to fetch /api/hotspots");
-        return;
-      }
-      const points = await res.json();
-      if (!points || !points.features || points.features.length === 0) {
-        console.warn("No recent crime points to build hotspots.");
-        map.addSource("crime-hexes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-        map.addLayer({
-          id: "crime-hex-layer",
-          type: "fill-extrusion",
-          source: "crime-hexes",
-          layout: { visibility: "none" },
-          paint: {
-            "fill-extrusion-color": "#ff0000",
-            "fill-extrusion-height": 0,
-            "fill-extrusion-opacity": 0.5
-          }
-        });
-        hotspotsAdded = true;
-        return;
-      }
-
-      const bbox = turf.bbox(points);
-      const bboxPoly = turf.bboxPolygon(bbox);
-      const bufferedBbox = turf.buffer(bboxPoly, 1, { units: "kilometers" });
-      const cellSizeKm = 0.4;
-      const hexGrid = turf.hexGrid(turf.bbox(bufferedBbox), cellSizeKm, { units: "kilometers" });
-
-      hexGrid.features.forEach(hex => {
-        const ptsWithin = turf.pointsWithinPolygon(points, hex);
-        hex.properties = hex.properties || {};
-        hex.properties.count = (ptsWithin && ptsWithin.features) ? ptsWithin.features.length : 0;
-      });
-
-      // MODIFIED: Filter out hexagons with a count of less than 3
-      const hexFiltered = {
-        type: "FeatureCollection",
-        features: hexGrid.features.filter(h => (h.properties && h.properties.count && h.properties.count >= 7))
-      };
-
       if (!map.getSource("crime-hexes")) {
-        map.addSource("crime-hexes", { type: "geojson", data: hexFiltered });
+        map.addSource("crime-hexes", { type: "geojson", data: hotspots });
       } else {
-        map.getSource("crime-hexes").setData(hexFiltered);
+        map.getSource("crime-hexes").setData(hotspots);
       }
 
       if (!map.getLayer("crime-hex-layer")) {
@@ -347,7 +690,6 @@ map.on("load", () => {
           source: "crime-hexes",
           layout: { visibility: "none" },
           paint: {
-            // MODIFIED: Use a single red for all "hot" hexagons
             "fill-extrusion-color": "#D7263D", 
             "fill-extrusion-height": ["*", 10, ["get", "count"]],
             "fill-extrusion-opacity": 0.55
@@ -361,12 +703,8 @@ map.on("load", () => {
           const count = feat.properties.count || 0;
           popup.setLngLat(e.lngLat).setHTML(`<strong>Crimes in Hex:</strong> ${count}`).addTo(map);
         });
-        map.on("mouseleave", "crime-hex-layer", () => {
-          const popup = map.getPopup();
-          if(popup) popup.remove();
-        });
+        map.on("mouseleave", "crime-hex-layer", () => popup.remove());
       }
-
       hotspotsAdded = true;
     }
 
@@ -374,12 +712,7 @@ map.on("load", () => {
       const vis = map.getLayoutProperty("crime-hex-layer", "visibility") || "none";
       const newVis = (vis === "visible") ? "none" : "visible";
       map.setLayoutProperty("crime-hex-layer", "visibility", newVis);
-      hotspotsVisible = (newVis === "visible");
     }
-  };
-
-  document.getElementById('toggleHotspotsBtn').addEventListener('click', () => {
-    toggleHotspots().catch(e => console.error("Hotspots toggle error:", e));
   });
 });
 </script>

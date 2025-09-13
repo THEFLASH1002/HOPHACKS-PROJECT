@@ -15,7 +15,6 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL_NAME = "google/gemini-2.0-flash-exp:free"
 
-
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.get_json()
@@ -46,36 +45,26 @@ def chat():
 # =========================
 # Hospital & Crime Data
 # =========================
-
-# Load hospitals GeoJSON
 with open("data/hospitals.geojson", "r") as f:
     hospital_geojson = json.load(f)
 
-# Enrich hospital data
 for feature in hospital_geojson["features"]:
     props = feature["properties"]
-    props["occupancy"] = random.randint(50, 100)  # fake occupancy %
+    props["occupancy"] = random.randint(50, 100)
 
-
-# Load crime data
 crime_df = pd.read_csv("data/crime.csv", parse_dates=["CrimeDateTime"])
 
-
 def compute_crime_counts():
-    """Aggregate crime counts per neighborhood (last 7 days)."""
     cutoff = datetime.now() - timedelta(days=7)
     recent = crime_df[crime_df["CrimeDateTime"] >= cutoff]
 
-    # Normalize neighborhood names
     recent["Neighborhood_norm"] = (
         recent["Neighborhood"].astype(str).str.strip().str.lower()
     )
     counts = recent.groupby("Neighborhood_norm").size().to_dict()
     return counts
 
-
 def compute_heat_scores():
-    """Return neighborhood GeoJSON with crime counts + heat scores."""
     crime_counts = compute_crime_counts()
 
     with open("data/neighborhood.geojson", "r") as f:
@@ -88,17 +77,14 @@ def compute_heat_scores():
 
         props["name"] = name
         props["crime_count"] = int(crime_counts.get(name_norm, 0))
-        props["heat_score"] = random.randint(1, 100)  # placeholder
+        props["heat_score"] = random.randint(1, 100)
 
     return neighborhoods
 
-
 def compute_hotspots():
-    """Generate fake hexagon hotspots based on crime data."""
     cutoff = datetime.now() - timedelta(days=7)
     recent = crime_df[crime_df["CrimeDateTime"] >= cutoff]
 
-    # Build fake hex grid GeoJSON (here: just bounding box of points)
     features = []
     for _, row in recent.iterrows():
         lat, lon = row["Latitude"], row["Longitude"]
@@ -110,9 +96,7 @@ def compute_hotspots():
                         "type": "Point",
                         "coordinates": [lon, lat],
                     },
-                    "properties": {
-                        "intensity": random.randint(1, 100)
-                    },
+                    "properties": {"intensity": random.randint(1, 100)},
                 }
             )
 
@@ -127,12 +111,10 @@ def compute_hotspots():
 def get_hospitals():
     return jsonify(hospital_geojson)
 
-
 @app.route("/api/neighborhoods")
 def get_neighborhoods():
     neighborhoods = compute_heat_scores()
     return jsonify(neighborhoods)
-
 
 @app.route("/api/hotspots")
 def get_hotspots():
@@ -145,13 +127,11 @@ def get_hotspots():
 # =========================
 @app.route("/")
 def index():
-    return render_template("map.html")  # load map by default
-
+    return render_template("map.html")
 
 @app.route("/home")
 def home():
     return render_template("home.html")
-
 
 @app.route("/map")
 def map_page():
@@ -160,6 +140,7 @@ def map_page():
 @app.route("/dash")
 def dash():
     return render_template("dash.html")
+
 
 # =========================
 # Run the App
