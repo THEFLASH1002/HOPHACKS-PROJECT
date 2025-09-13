@@ -1,23 +1,76 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, request, jsonify, render_template
+import requests
+import os
 import pandas as pd
 import json
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static", template_folder="templates")
 
-# Load and process neighborhoods + crime data
-def compute_heat_scores():
-    # Load crime data
-    crime_df = pd.read_csv("data/crime.csv")
+# =========================
+# OpenRouter API Chat Setup
+# =========================
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+MODEL_NAME = "google/gemini-2.0-flash-exp:free"
 
-    # Normalize CSV neighborhood names
-    crime_df["Neighborhood_norm"] = crime_df["Neighborhood"].str.strip().str.lower()
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    data = request.get_json()
+    user_message = data.get("message", "")
 
-    # Count crimes by normalized neighborhood
-    crime_counts = crime_df["Neighborhood_norm"].value_counts().to_dict()
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-    # Load GeoJSON neighborhoods
-    with open("data/neighborhood.geojson", "r") as f:
-        neighborhoods = json.load(f)
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [
+            {"role": "user", "content": user_message}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 500
+    }
+
+    try:
+        response = requests.post(
+            OPENROUTER_API_URL,
+            headers=headers,
+            json=payload
+        )
+        response.raise_for_status()
+        bot_reply = response.json()["choices"][0]["message"]["content"]
+        return jsonify({"reply": bot_reply})
+    except Exception as e:
+        print(e)
+        return jsonify({"reply": "Something went wrong."}), 500
+
+# =========================
+# Hospital & Neighborhood Data
+# =========================
+hospitals = pd.read_csv("data/hospital.csv")
+
+hospital_points = [
+    {
+        "type": "Feature",
+        "geometry": {
+            "type": "Point",
+            "coordinates": [row["X"] / 100000, row["Y"] / 100000]  # normalize scaling
+        },
+        "properties": {
+            "name": row["name"],
+            "address": row["address"],
+            "city": row["city"],
+            "state": row["state"],
+            "zipcode": row["zipcode"],
+            "occupancy": random.randint(50, 100)
+        }
+    }
+    for _, row in hospitals.iterrows()
+]
+
+with open("data/neighborhood.geojson", "r") as f:
+    neighborhoods = json.load(f)
 
     # Attach crime counts
     for feature in neighborhoods["features"]:
@@ -32,25 +85,38 @@ def compute_heat_scores():
         props["crime_count"] = int(crime_counts.get(name_norm, 0))
 
     return neighborhoods
+for feature in neighborhoods["features"]:
+    feature["properties"]["heat_score"] = random.randint(1, 100)
 
-
-@app.route("/")
-def index():
-    return render_template("map.html")
-
+@app.route("/api/hospitals")
+def get_hospitals():
+    return jsonify({
+        "type": "FeatureCollection",
+        "features": hospital_points
+    })
 
 @app.route("/api/neighborhoods")
 def get_neighborhoods():
     neighborhoods = compute_heat_scores()
     return jsonify(neighborhoods)
 
+# =========================
+# Frontend Routes
+# =========================
+@app.route("/")
+def index():
+    return render_template("home.html")  
 
-# Optional debug endpoint to see counts quickly
-@app.route("/api/debug_counts")
-def debug_counts():
-    crime_df = pd.read_csv("data/crime.csv")
-    return crime_df["Neighborhood"].value_counts().to_dict()
+@app.route("/home")
+def home():
+    return render_template("home.html")  
 
+@app.route("/map")
+def map_page():
+    return render_template("map.html")   
 
+# =========================
+# Run the App
+# =========================
 if __name__ == "__main__":
     app.run(debug=True)
