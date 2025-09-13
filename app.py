@@ -1,8 +1,10 @@
 from flask import Flask, request, jsonify, render_template
 import requests
 import os
-import pandas as pd
 import json
+import random
+import pandas as pd
+from datetime import datetime, timedelta
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -42,58 +44,59 @@ def chat():
         bot_reply = response.json()["choices"][0]["message"]["content"]
         return jsonify({"reply": bot_reply})
     except Exception as e:
-        print(e)
+        print("Chat API error:", e)
         return jsonify({"reply": "Something went wrong."}), 500
 
 # =========================
 # Hospital & Neighborhood Data
 # =========================
-hospitals = pd.read_csv("data/hospital.csv")
 
-hospital_points = [
-    {
-        "type": "Feature",
-        "geometry": {
-            "type": "Point",
-            "coordinates": [row["X"] / 100000, row["Y"] / 100000]  # normalize scaling
-        },
-        "properties": {
-            "name": row["name"],
-            "address": row["address"],
-            "city": row["city"],
-            "state": row["state"],
-            "zipcode": row["zipcode"],
-            "occupancy": random.randint(50, 100)
-        }
-    }
-    for _, row in hospitals.iterrows()
-]
+# Load hospitals as GeoJSON
+with open("data/hospitals.geojson", "r") as f:
+    hospital_geojson = json.load(f)
 
-with open("data/neighborhood.geojson", "r") as f:
-    neighborhoods = json.load(f)
+# Optionally enrich hospital data
+for feature in hospital_geojson["features"]:
+    props = feature["properties"]
+    props["occupancy"] = random.randint(50, 100)  # fake occupancy %
 
-    # Attach crime counts
+# Load crime data
+crime_df = pd.read_csv("data/crime.csv", parse_dates=["CrimeDateTime"])
+
+def compute_crime_counts():
+    """Aggregate crime counts per neighborhood (last 7 days)."""
+    cutoff = datetime.now() - timedelta(days=7)
+    recent = crime_df[crime_df["CrimeDateTime"] >= cutoff]
+
+    # Normalize neighborhood names
+    recent["Neighborhood_norm"] = recent["Neighborhood"].str.strip().str.lower()
+    counts = recent.groupby("Neighborhood_norm").size().to_dict()
+    return counts
+
+def compute_heat_scores():
+    """Return neighborhood GeoJSON with crime counts + heat scores."""
+    crime_counts = compute_crime_counts()
+
+    with open("data/neighborhood.geojson", "r") as f:
+        neighborhoods = json.load(f)
+
     for feature in neighborhoods["features"]:
         props = feature["properties"]
-
-        # Get neighborhood name from GeoJSON
         name = props.get("Name") or props.get("Neighborhood") or "Unknown"
         name_norm = str(name).strip().lower()
 
-        # Attach original + crime count
         props["name"] = name
         props["crime_count"] = int(crime_counts.get(name_norm, 0))
+        props["heat_score"] = random.randint(1, 100)  # placeholder
 
     return neighborhoods
-for feature in neighborhoods["features"]:
-    feature["properties"]["heat_score"] = random.randint(1, 100)
 
+# =========================
+# API Routes
+# =========================
 @app.route("/api/hospitals")
 def get_hospitals():
-    return jsonify({
-        "type": "FeatureCollection",
-        "features": hospital_points
-    })
+    return jsonify(hospital_geojson)
 
 @app.route("/api/neighborhoods")
 def get_neighborhoods():
@@ -105,15 +108,15 @@ def get_neighborhoods():
 # =========================
 @app.route("/")
 def index():
-    return render_template("home.html")  
+    return render_template("home.html")
 
 @app.route("/home")
 def home():
-    return render_template("home.html")  
+    return render_template("home.html")
 
 @app.route("/map")
 def map_page():
-    return render_template("map.html")   
+    return render_template("map.html")
 
 # =========================
 # Run the App
