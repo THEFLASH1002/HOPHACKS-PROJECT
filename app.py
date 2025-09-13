@@ -108,7 +108,7 @@ def get_neighborhoods():
 # =========================
 @app.route("/")
 def index():
-    return render_template("home.html")
+    return render_template("dash.html")
 
 @app.route("/home")
 def home():
