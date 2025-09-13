@@ -13,8 +13,35 @@
     body, html { margin:0; padding:0; height:100%; font-family: "Helvetica Neue", Arial, Helvetica, sans-serif; }
     #map { position:absolute; top:0; bottom:0; width:100%; }
     .mapboxgl-popup { max-width: 300px; font: 14px/20px "Helvetica Neue", Arial, Helvetica, sans-serif; }
+    #back-button-container {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 3;
+    }
+    #backBtn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: rgba(240, 240, 240, 0.8);
+      border: none;
+      font-size: 24px;
+      font-weight: bold;
+      color: #333;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      transition: background-color 0.2s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding-bottom: 2px;
+    }
+    #backBtn:hover {
+      background-color: rgba(240, 240, 240, 0.9);
+      transform: scale(1.05);
+    }
     .controls {
-      position:absolute; left:10px; top:10px; background:rgba(255, 255, 255, 0.85); padding:10px; border-radius:10px;
+      position:absolute; left:10px; top:60px; background:rgba(255, 255, 255, 0.85); padding:10px; border-radius:10px;
       box-shadow:0 4px 12px rgba(0,0,0,0.25); z-index: 2;
       display: flex; flex-direction: column;
     }
@@ -114,6 +141,10 @@
 </head>
 <body>
 <div id="map"></div>
+
+<div id="back-button-container">
+  <button id="backBtn"><</button>
+</div>
 
 <div class="controls">
   <button id="toggleCrimeBtn">Toggle Crime Map</button>
@@ -741,6 +772,9 @@ map.on("load", () => {
   
   map.addLayer(ambulanceLayer, "waterway-label");
 
+  document.getElementById('backBtn').addEventListener('click', () => {
+    window.history.back();
+  });
   document.getElementById('simulateFull911CallBtn').addEventListener('click', simulateFull911Call);
   document.getElementById('simulateHotspotBtn').addEventListener('click', simulateHotspotAmbulance);
 
