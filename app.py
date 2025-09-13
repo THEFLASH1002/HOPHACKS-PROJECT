@@ -127,7 +127,7 @@ def get_hotspots():
 # =========================
 @app.route("/")
 def index():
-    return render_template("timelapse.html")
+    return render_template("hos_map.html")
 
 @app.route("/home")
 def home():

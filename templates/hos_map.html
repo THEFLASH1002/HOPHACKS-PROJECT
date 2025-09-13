@@ -53,14 +53,13 @@
       box-shadow: 0 4px 10px rgba(0,0,0,0.1);
       width: 180px;
       transition: all 0.2s ease-in-out;
-      border: 1px solid rgba(212, 212, 212, 0.5);
+      border: 1px solid rgba(212, 212, 0.5);
     }
     .trauma-level-box {
       position: absolute;
       top: 10px;
       right: 60px;
       width: 150px;
-      display: none;
     }
     .statistic-box:hover {
       transform: translateY(-3px) scale(1.02);
@@ -98,6 +97,19 @@
       font-weight: 400;
       color: #666;
     }
+    .call-marker {
+        width: 30px;
+        height: 30px;
+        background-color: red;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        color: white;
+        border: 2px solid white;
+        box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    }
   </style>
 </head>
 <body>
@@ -108,10 +120,11 @@
   <button id="toggleTrafficBtn">Toggle Traffic</button>
   <button id="toggleHospitalsBtn">Toggle Hospitals</button>
   <button id="toggleHotspotsBtn">Toggle Hotspots</button>
-  <button id="runSimulationBtn">Run Ambulance Simulation</button>
+  <button id="simulateFull911CallBtn">Simulate Full 911 Call</button>
+  <button id="simulateHotspotBtn">Simulate from Hotspot</button>
 </div>
 
-<div id="traumaLevelBox" class="statistic-box trauma-level-box">
+<div id="traumaLevelBox" class="statistic-box trauma-level-box" style="display: none;">
   <h4>🩸 Trauma Level</h4>
   <p id="traumaLevelDisplay">N/A</p>
 </div>
@@ -157,11 +170,12 @@ const map = new mapboxgl.Map({
 });
 
 let hospitalData = []; 
-let hospitalsVisible = true;
+let hospitalsVisible = false;
 let hotspotsAdded = false;
 let hotspotsVisible = false;
 let crimeHotspots = null;
 let traumaLevel = null;
+let callMarker = null;
 
 let ambulanceAnimationActive = false;
 let ambulanceLayerInstance = null;
@@ -226,6 +240,15 @@ async function getRoute(start, end) {
   return json.routes[0].geometry.coordinates;
 }
 
+function getRandomAmbulanceStart() {
+    // Bounding box for Baltimore, Maryland
+    const bbox = [-76.711, 39.206, -76.518, 39.372];
+    const lon = bbox[0] + (Math.random() * (bbox[2] - bbox[0]));
+    const lat = bbox[1] + (Math.random() * (bbox[3] - bbox[1]));
+    return [lon, lat];
+}
+
+
 function animateAmbulance() {
     if (!ambulanceAnimationActive || !ambulanceState.route) {
         return;
@@ -236,6 +259,10 @@ function animateAmbulance() {
         console.log("Ambulance reached the hospital. Simulation complete.");
         ambulanceAnimationActive = false;
         map.getSource("route-line-source").setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] } });
+        if(callMarker) {
+            callMarker.remove();
+            callMarker = null;
+        }
         return;
     }
 
@@ -353,6 +380,258 @@ async function fetchHotspots() {
   return crimeHotspots;
 }
 
+/**
+ * Simulates a full 911 call from a random starting point to a hotspot, then to a hospital.
+ */
+async function simulateFull911Call() {
+  if (ambulanceAnimationActive) {
+      ambulanceAnimationActive = false;
+      console.log("Ambulance simulation stopped.");
+      map.getSource("route-line-source").setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] } });
+      if(callMarker) {
+        callMarker.remove();
+        callMarker = null;
+      }
+      return;
+  }
+  
+  // Turn on hotspots if they are off
+  if (!hotspotsVisible) {
+      const hotspots = await fetchHotspots();
+      if (hotspots) {
+          if (!hotspotsAdded) {
+              if (!map.getSource("crime-hexes")) {
+                  map.addSource("crime-hexes", { type: "geojson", data: hotspots });
+              }
+              if (!map.getLayer("crime-hex-layer")) {
+                  map.addLayer({
+                      id: "crime-hex-layer",
+                      type: "fill-extrusion",
+                      source: "crime-hexes",
+                      layout: { visibility: "none" },
+                      paint: {
+                          "fill-extrusion-color": "#D7263D", 
+                          "fill-extrusion-height": ["*", 10, ["get", "count"]],
+                          "fill-extrusion-opacity": 0.55
+                      }
+                  });
+              }
+              hotspotsAdded = true;
+          }
+          map.setLayoutProperty("crime-hex-layer", "visibility", "visible");
+          hotspotsVisible = true;
+      }
+  }
+
+  // Turn on hospitals if they are off
+  if (!hospitalsVisible) {
+      hospitalData.forEach(h => h.marker.addTo(map));
+      hospitalsVisible = true;
+  }
+
+  try {
+    document.getElementById('traumaLevelBox').style.display = 'block';
+    traumaLevel = Math.floor(Math.random() * 5) + 1;
+    document.getElementById('traumaLevelDisplay').textContent = traumaLevel;
+    
+    const hotspots = await fetchHotspots();
+    if (!hotspots || hotspots.features.length === 0) {
+      console.error("No crime hotspots found to start the simulation.");
+      return;
+    }
+    
+    const randomHotspotIndex = Math.floor(Math.random() * hotspots.features.length);
+    const randomHotspot = hotspots.features[randomHotspotIndex];
+    const callLocation = turf.pointOnFeature(randomHotspot).geometry.coordinates;
+
+    const el = document.createElement('div');
+    el.className = 'call-marker';
+    el.innerHTML = '🚨';
+    callMarker = new mapboxgl.Marker(el)
+      .setLngLat(callLocation)
+      .addTo(map);
+
+    const ambulanceStart = getRandomAmbulanceStart();
+    const bestHospital = findBestHospital(callLocation, hospitalData, traumaLevel);
+
+    if (!bestHospital) {
+      console.error("No hospitals found to route to.");
+      return;
+    }
+
+    console.log(`Routing ambulance from a random location [${ambulanceStart}] to 911 call at [${callLocation}] then to best hospital at [${bestHospital}]`);
+    
+    const routeToCall = await getRoute(ambulanceStart, callLocation);
+    const routeToHospital = await getRoute(callLocation, bestHospital);
+    const combinedRoute = routeToCall.concat(routeToHospital);
+
+    ambulanceLayerInstance.ambulances.forEach((amb, index) => {
+      if (index > 0) amb.visible = false;
+    });
+
+    ambulanceState.route = combinedRoute;
+    ambulanceState.positionIndex = 0;
+    ambulanceState.currentPosition = [...combinedRoute[0]];
+
+    map.getSource("route-line-source").setData({
+        type: "Feature",
+        geometry: {
+            type: "LineString",
+            coordinates: combinedRoute
+        }
+    });
+
+    const animatedAmbulance = ambulanceLayerInstance.ambulances[0];
+    if (animatedAmbulance) {
+      animatedAmbulance.visible = true;
+      const initialCoords = mapboxgl.MercatorCoordinate.fromLngLat(ambulanceState.currentPosition, 0);
+      animatedAmbulance.position.x = initialCoords.x;
+      animatedAmbulance.position.y = initialCoords.y;
+      animatedAmbulance.position.z = initialCoords.z;
+      
+      const modelTransform = { scale: initialCoords.meterInMercatorCoordinateUnits() };
+      const customScale = 50;
+      animatedAmbulance.scale.set(
+          modelTransform.scale * customScale,
+          modelTransform.scale * customScale,
+          modelTransform.scale * customScale
+      );
+    }
+
+    ambulanceAnimationActive = true;
+    animateAmbulance();
+
+  } catch (err) {
+    console.error("Error running simulation:", err);
+  }
+}
+
+
+/**
+ * Simulates a call for an ambulance staged at a hotspot to a hospital.
+ */
+async function simulateHotspotAmbulance() {
+  if (ambulanceAnimationActive) {
+      ambulanceAnimationActive = false;
+      console.log("Ambulance simulation stopped.");
+      map.getSource("route-line-source").setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] } });
+      if(callMarker) {
+        callMarker.remove();
+        callMarker = null;
+      }
+      return;
+  }
+  
+  // Turn on hotspots if they are off
+  if (!hotspotsVisible) {
+      const hotspots = await fetchHotspots();
+      if (hotspots) {
+          if (!hotspotsAdded) {
+              if (!map.getSource("crime-hexes")) {
+                  map.addSource("crime-hexes", { type: "geojson", data: hotspots });
+              }
+              if (!map.getLayer("crime-hex-layer")) {
+                  map.addLayer({
+                      id: "crime-hex-layer",
+                      type: "fill-extrusion",
+                      source: "crime-hexes",
+                      layout: { visibility: "none" },
+                      paint: {
+                          "fill-extrusion-color": "#D7263D", 
+                          "fill-extrusion-height": ["*", 10, ["get", "count"]],
+                          "fill-extrusion-opacity": 0.55
+                      }
+                  });
+              }
+              hotspotsAdded = true;
+          }
+          map.setLayoutProperty("crime-hex-layer", "visibility", "visible");
+          hotspotsVisible = true;
+      }
+  }
+
+  // Turn on hospitals if they are off
+  if (!hospitalsVisible) {
+      hospitalData.forEach(h => h.marker.addTo(map));
+      hospitalsVisible = true;
+  }
+
+  try {
+    document.getElementById('traumaLevelBox').style.display = 'block';
+    traumaLevel = Math.floor(Math.random() * 5) + 1;
+    document.getElementById('traumaLevelDisplay').textContent = traumaLevel;
+    
+    const hotspots = await fetchHotspots();
+    if (!hotspots || hotspots.features.length === 0) {
+      console.error("No crime hotspots found to start the simulation.");
+      return;
+    }
+    
+    const randomHotspotIndex = Math.floor(Math.random() * hotspots.features.length);
+    const randomHotspot = hotspots.features[randomHotspotIndex];
+    const callLocation = turf.pointOnFeature(randomHotspot).geometry.coordinates;
+
+    const el = document.createElement('div');
+    el.className = 'call-marker';
+    el.innerHTML = '🚨';
+    callMarker = new mapboxgl.Marker(el)
+      .setLngLat(callLocation)
+      .addTo(map);
+
+    const ambulanceStart = callLocation;
+    const bestHospital = findBestHospital(callLocation, hospitalData, traumaLevel);
+
+    if (!bestHospital) {
+      console.error("No hospitals found to route to.");
+      return;
+    }
+
+    console.log(`Routing ambulance from hotspot [${ambulanceStart}] to best hospital at [${bestHospital}]`);
+    
+    const route = await getRoute(ambulanceStart, bestHospital);
+    
+    ambulanceLayerInstance.ambulances.forEach((amb, index) => {
+      if (index > 0) amb.visible = false;
+    });
+
+    ambulanceState.route = route;
+    ambulanceState.positionIndex = 0;
+    ambulanceState.currentPosition = [...route[0]];
+
+    map.getSource("route-line-source").setData({
+        type: "Feature",
+        geometry: {
+            type: "LineString",
+            coordinates: route
+        }
+    });
+
+    const animatedAmbulance = ambulanceLayerInstance.ambulances[0];
+    if (animatedAmbulance) {
+      animatedAmbulance.visible = true;
+      const initialCoords = mapboxgl.MercatorCoordinate.fromLngLat(ambulanceState.currentPosition, 0);
+      animatedAmbulance.position.x = initialCoords.x;
+      animatedAmbulance.position.y = initialCoords.y;
+      animatedAmbulance.position.z = initialCoords.z;
+      
+      const modelTransform = { scale: initialCoords.meterInMercatorCoordinateUnits() };
+      const customScale = 50;
+      animatedAmbulance.scale.set(
+          modelTransform.scale * customScale,
+          modelTransform.scale * customScale,
+          modelTransform.scale * customScale
+      );
+    }
+
+    ambulanceAnimationActive = true;
+    animateAmbulance();
+
+  } catch (err) {
+    console.error("Error running simulation:", err);
+  }
+}
+
+
 map.on("load", () => {
   map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
@@ -417,7 +696,7 @@ map.on("load", () => {
             newAmbulance.position.z = mercatorCoords.z;
 
             const modelTransform = { scale: mercatorCoords.meterInMercatorCoordinateUnits() };
-            const customScale = 100;
+            const customScale = 50;
             newAmbulance.scale.set(
               modelTransform.scale * customScale,
               modelTransform.scale * customScale,
@@ -462,85 +741,8 @@ map.on("load", () => {
   
   map.addLayer(ambulanceLayer, "waterway-label");
 
-  document.getElementById('runSimulationBtn').addEventListener('click', async () => {
-    if (ambulanceAnimationActive) {
-      ambulanceAnimationActive = false;
-      console.log("Ambulance simulation stopped.");
-      map.getSource("route-line-source").setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] } });
-      document.getElementById('traumaLevelBox').style.display = 'none';
-      return;
-    }
-
-    try {
-      // Show the trauma level box
-      document.getElementById('traumaLevelBox').style.display = 'block';
-
-      // Generate a random trauma level for this simulation
-      traumaLevel = Math.floor(Math.random() * 5) + 1;
-      document.getElementById('traumaLevelDisplay').textContent = traumaLevel;
-      
-      const hotspots = await fetchHotspots();
-      if (!hotspots || hotspots.features.length === 0) {
-        console.error("No crime hotspots found to start the simulation.");
-        return;
-      }
-      
-      const randomHotspotIndex = Math.floor(Math.random() * hotspots.features.length);
-      const randomHotspot = hotspots.features[randomHotspotIndex];
-      const startPoint = turf.pointOnFeature(randomHotspot).geometry.coordinates;
-      
-      const bestHospital = findBestHospital(startPoint, hospitalData, traumaLevel);
-
-      if (!bestHospital) {
-        console.error("No hospitals found to route to.");
-        return;
-      }
-
-      console.log(`Routing ambulance from a random hotspot at [${startPoint}] to best hospital at [${bestHospital}]`);
-      
-      const route = await getRoute(startPoint, bestHospital);
-
-      ambulanceLayerInstance.ambulances.forEach((amb, index) => {
-        if (index > 0) amb.visible = false;
-      });
-
-      ambulanceState.route = route;
-      ambulanceState.positionIndex = 0;
-      ambulanceState.currentPosition = [...route[0]];
-
-      map.getSource("route-line-source").setData({
-          type: "Feature",
-          geometry: {
-              type: "LineString",
-              coordinates: route
-          }
-      });
-
-      const animatedAmbulance = ambulanceLayerInstance.ambulances[0];
-      if (animatedAmbulance) {
-        animatedAmbulance.visible = true;
-        const initialCoords = mapboxgl.MercatorCoordinate.fromLngLat(ambulanceState.currentPosition, 0);
-        animatedAmbulance.position.x = initialCoords.x;
-        animatedAmbulance.position.y = initialCoords.y;
-        animatedAmbulance.position.z = initialCoords.z;
-        
-        const modelTransform = { scale: initialCoords.meterInMercatorCoordinateUnits() };
-        const customScale = 50;
-        animatedAmbulance.scale.set(
-            modelTransform.scale * customScale,
-            modelTransform.scale * customScale,
-            modelTransform.scale * customScale
-        );
-      }
-
-      ambulanceAnimationActive = true;
-      animateAmbulance();
-
-    } catch (err) {
-      console.error("Error running simulation:", err);
-    }
-  });
-
+  document.getElementById('simulateFull911CallBtn').addEventListener('click', simulateFull911Call);
+  document.getElementById('simulateHotspotBtn').addEventListener('click', simulateHotspotAmbulance);
 
   fetch("/api/neighborhoods")
     .then(res => res.json())
@@ -556,13 +758,15 @@ map.on("load", () => {
           id: "crime-heat",
           type: "fill",
           source: "neighborhoods",
+          layout: { 'visibility': 'none' },
           paint: {
             "fill-color": [
               "interpolate",
               ["linear"], ["get", "crime_count"],
               0, "#2DC937",
-              50, "#FFCC00",
-              200, "#D7263D"
+              5, "#FFCC00",
+              15, "#D7263D",
+              25, "#8B0000"
             ],
             "fill-opacity": 0.6
           }
@@ -574,6 +778,7 @@ map.on("load", () => {
           id: "neighborhood-borders",
           type: "line",
           source: "neighborhoods",
+          layout: { 'visibility': 'none' },
           paint: { "line-color": "#000", "line-width": 1 }
         });
       }
@@ -623,8 +828,7 @@ map.on("load", () => {
 
         const marker = new mapboxgl.Marker({ element: el })
           .setLngLat(coords)
-          .setPopup(popup)
-          .addTo(map);
+          .setPopup(popup);
 
         return { marker, coords, occupancy, name, address };
       });
@@ -649,7 +853,7 @@ map.on("load", () => {
         type: "line",
         source: "traffic",
         "source-layer": "traffic",
-        layout: { "line-cap": "round", "line-join": "round" },
+        layout: { 'visibility': 'none', "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": [
             "case",
@@ -712,6 +916,7 @@ map.on("load", () => {
       const vis = map.getLayoutProperty("crime-hex-layer", "visibility") || "none";
       const newVis = (vis === "visible") ? "none" : "visible";
       map.setLayoutProperty("crime-hex-layer", "visibility", newVis);
+      hotspotsVisible = (newVis === 'visible');
     }
   });
 });

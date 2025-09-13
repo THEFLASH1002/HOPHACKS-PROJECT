@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Baltimore Fire Map + Traffic + Stations + Hotspots</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <style>
+    body, html { margin:0; padding:0; height:100%; font-family: "Helvetica Neue", Arial, Helvetica, sans-serif; }
+    #map { position:absolute; top:0; bottom:0; width:100%; }
+    .mapboxgl-popup { max-width: 300px; font: 14px/20px "Helvetica Neue", Arial, Helvetica, sans-serif; }
+    .controls {
+      position:absolute; left:10px; top:10px; background:rgba(255, 255, 255, 0.85); padding:10px; border-radius:10px;
+      box-shadow:0 4px 12px rgba(0,0,0,0.25); z-index: 2;
+      display: flex; flex-direction: column;
+    }
+    .controls button {
+      display:block; margin-bottom:8px; width:180px; padding:10px;
+      border: 1px solid #ccc; border-radius: 6px;
+      background-color: #f0f0f0; cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+      font-weight: bold;
+    }
+    .controls button:hover {
+      background-color: #e0e0e0;
+      transform: translateY(-1px);
+    }
+    .controls button:active {
+      transform: translateY(1px);
+    }
+    .fire-station-marker {
+      width: 44px; height: 44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+      font-size: 24px; font-weight: 700; color: #fff; border: 3px solid #fff; pointer-events: auto;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      background-color: #A52A2A; /* Brown/red color for fire stations */
+    }
+    .statistic-container {
+      position: absolute;
+      left: 10px;
+      top: 350px;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .statistic-box {
+      background: rgba(255, 255, 255, 0.7);
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      width: 180px;
+      transition: all 0.2s ease-in-out;
+      border: 1px solid rgba(212, 212, 0.5);
+    }
+    .fire-severity-box {
+      position: absolute;
+      top: 10px;
+      right: 60px;
+      width: 150px;
+      display: none;
+    }
+    .statistic-box:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    }
+    .statistic-box h4 {
+      margin-top: 0;
+      margin-bottom: 8px;
+      font-weight: normal;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .statistic-box p {
+      font-size: 24px;
+      font-weight: 600;
+      color: #000;
+      margin: 0;
+    }
+    .color-legend {
+      display: flex;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+    .color-swatch {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+    #occupancy-timer {
+      font-size: 14px;
+      margin-top: 10px;
+      font-weight: 400;
+      color: #666;
+    }
+    .fire-marker {
+        width: 30px;
+        height: 30px;
+        background-color: #ff4500;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        color: white;
+        border: 2px solid white;
+        box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="controls">
+  <button id="toggleFireMapBtn">Toggle Fire Map</button>
+  <button id="toggleTrafficBtn">Toggle Traffic</button>
+  <button id="toggleFireStationsBtn">Toggle Fire Stations</button>
+  <button id="toggleHotspotsBtn">Toggle Hotspots</button>
+  <button id="simulateFullFireCallBtn">Simulate Full Fire Call</button>
+  <button id="simulateHotspotBtn">Simulate from Hotspot</button>
+</div>
+
+<div id="fireSeverityBox" class="statistic-box fire-severity-box">
+  <h4>🔥 Fire Severity</h4>
+  <p id="fireSeverityDisplay">N/A</p>
+</div>
+
+<div class="statistic-container">
+    <div id="fireCounterBox" class="statistic-box">
+      <h4>🔥 Fires Today</h4>
+      <p>12</p>
+    </div>
+    <div id="activeFireTrucksBox" class="statistic-box">
+      <h4>🚒 Active Fire Trucks</h4>
+      <p>2</p>
+    </div>
+    <div id="legendBox" class="statistic-box">
+        <h4>Fire Severity Key</h4>
+        <div class="color-legend">
+          <span class="color-swatch" style="background-color: #ffb833;"></span>
+          <p style="margin: 0;">Low</p>
+        </div>
+        <div class="color-legend">
+          <span class="color-swatch" style="background-color: #ff6600;"></span>
+          <p style="margin: 0;">Medium</p>
+        </div>
+        <div class="color-legend">
+          <span class="color-swatch" style="background-color: #D7263D;"></span>
+          <p style="margin: 0;">High</p>
+        </div>
+    </div>
+</div>
+
+<script>
+mapboxgl.accessToken = "pk.eyJ1IjoidGhlZmxhc2gxMDAyIiwiYSI6ImNtZmYwMjZuODBkN2UybXExaTM2ZGl0d3cifQ.j520k_qlveWfMAYCCu5IqQ";
+
+const map = new mapboxgl.Map({
+  container: "map",
+  style: "mapbox://styles/mapbox/streets-v12",
+  center: [-76.6122, 39.2904],
+  zoom: 11,
+  pitch: 45,
+  bearing: -17.6,
+  antialias: true
+});
+
+let fireStationData = []; 
+let fireStationsVisible = true;
+let hotspotsAdded = false;
+let hotspotsVisible = false;
+let fireHotspots = null;
+let fireSeverity = null;
+let fireMarker = null;
+
+let fireTruckAnimationActive = false;
+let fireTruckLayerInstance = null;
+let fireTruckState = {
+  route: null,
+  positionIndex: 0,
+  speed: 0.0001,
+  currentPosition: [-76.6122, 39.2904],
+};
+let userIsInteracting = false;
+
+// Event listeners to detect user interaction
+map.on('mousedown', () => userIsInteracting = true);
+map.on('mouseup', () => setTimeout(() => userIsInteracting = false, 500));
+map.on('touchstart', () => userIsInteracting = true);
+map.on('touchend', () => setTimeout(() => userIsInteracting = false, 500));
+map.on('wheel', () => userIsInteracting = true);
+
+async function findNearestFireStation(startPoint, fireStations) {
+    let nearestStation = null;
+    let minDistance = Infinity;
+
+    fireStations.forEach(station => {
+        const stationCoords = station.coords;
+        const distance = turf.distance(turf.point(startPoint), turf.point(stationCoords), { units: 'kilometers' });
+        
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestStation = stationCoords;
+        }
+    });
+
+    return nearestStation;
+}
+
+async function getRoute(start, end) {
+  const query = await fetch(
+    `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${start[0]},${start[1]};${end[0]},${end[1]}?steps=true&geometries=geojson&access_token=${mapboxgl.accessToken}`,
+    { method: "GET" }
+  );
+  const json = await query.json();
+  if (!json.routes || json.routes.length === 0) {
+    throw new Error("No route found.");
+  }
+  return json.routes[0].geometry.coordinates;
+}
+
+function getRandomFireTruckStart() {
+    // Bounding box for Baltimore, Maryland
+    const bbox = [-76.711, 39.206, -76.518, 39.372];
+    const lon = bbox[0] + (Math.random() * (bbox[2] - bbox[0]));
+    const lat = bbox[1] + (Math.random() * (bbox[3] - bbox[1]));
+    return [lon, lat];
+}
+
+
+function animateFireTruck() {
+    if (!fireTruckAnimationActive || !fireTruckState.route) {
+        return;
+    }
+
+    const nextPoint = fireTruckState.route[fireTruckState.positionIndex + 1];
+    if (!nextPoint) {
+        console.log("Fire truck reached the fire. Simulation complete.");
+        fireTruckAnimationActive = false;
+        map.getSource("route-line-source").setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] } });
+        if(fireMarker) {
+            fireMarker.remove();
+            fireMarker = null;
+        }
+        return;
+    }
+
+    const currentPoint = fireTruckState.currentPosition;
+    const distance = Math.hypot(nextPoint[0] - currentPoint[0], nextPoint[1] - currentPoint[1]);
+    
+    if (distance < fireTruckState.speed) {
+        fireTruckState.positionIndex++;
+        fireTruckState.currentPoint = [...nextPoint];
+    } else {
+        const directionX = (nextPoint[0] - currentPoint[0]) / distance;
+        const directionY = (nextPoint[1] - currentPoint[1]) / distance;
+        currentPoint[0] += directionX * fireTruckState.speed;
+        currentPoint[1] += directionY * fireTruckState.speed;
+    }
+
+    const animatedFireTruck = fireTruckLayerInstance.fireTrucks[0];
+    if (animatedFireTruck) {
+        const newMercatorCoords = mapboxgl.MercatorCoordinate.fromLngLat(currentPoint, 0);
+        animatedFireTruck.position.x = newMercatorCoords.x;
+        animatedFireTruck.position.y = newMercatorCoords.y;
+        
+        const modelTransform = {
+            scale: newMercatorCoords.meterInMercatorCoordinateUnits()
+        };
+        const customScale = 50; 
+        animatedFireTruck.scale.set(
+            modelTransform.scale * customScale,
+            modelTransform.scale * customScale,
+            modelTransform.scale * customScale
+        );
+    }
+
+    // Only pan the map if the user is not interacting with it
+    if (!userIsInteracting) {
+        map.panTo(currentPoint, { duration: 0 });
+    }
+
+    map.triggerRepaint();
+    requestAnimationFrame(animateFireTruck);
+}
+
+async function fetchHotspots() {
+  if (fireHotspots) {
+    return fireHotspots;
+  }
+  
+  const res = await fetch("/api/fire_hotspots");
+  if (!res.ok) {
+    console.error("Failed to fetch /api/fire_hotspots");
+    return null;
+  }
+  const points = await res.json();
+  if (!points || !points.features || points.features.length === 0) {
+    console.warn("No recent fire points to build hotspots.");
+    return null;
+  }
+
+  const bbox = turf.bbox(points);
+  const bboxPoly = turf.bboxPolygon(bbox);
+  const bufferedBbox = turf.buffer(bboxPoly, 1, { units: "kilometers" });
+  const cellSizeKm = 0.4;
+  const hexGrid = turf.hexGrid(turf.bbox(bufferedBbox), cellSizeKm, { units: "kilometers" });
+
+  hexGrid.features.forEach(hex => {
+    const ptsWithin = turf.pointsWithinPolygon(points, hex);
+    hex.properties = hex.properties || {};
+    hex.properties.count = (ptsWithin && ptsWithin.features) ? ptsWithin.features.length : 0;
+  });
+
+  const hexFiltered = {
+    type: "FeatureCollection",
+    features: hexGrid.features.filter(h => (h.properties && h.properties.count && h.properties.count >= 3))
+  };
+
+  fireHotspots = hexFiltered;
+  return fireHotspots;
+}
+
+/**
+ * Simulates a full fire call from a random starting point to a hotspot.
+ */
+async function simulateFullFireCall() {
+  if (fireTruckAnimationActive) {
+      fireTruckAnimationActive = false;
+      console.log("Fire truck simulation stopped.");
+      map.getSource("route-line-source").setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] } });
+      if(fireMarker) {
+        fireMarker.remove();
+        fireMarker = null;
+      }
+      return;
+  }
+  
+  try {
+    document.getElementById('fireSeverityBox').style.display = 'block';
+    fireSeverity = Math.floor(Math.random() * 5) + 1;
+    document.getElementById('fireSeverityDisplay').textContent = fireSeverity;
+    
+    const hotspots = await fetchHotspots();
+    if (!hotspots || hotspots.features.length === 0) {
+      console.error("No fire hotspots found to start the simulation.");
+      return;
+    }
+    
+    const randomHotspotIndex = Math.floor(Math.random() * hotspots.features.length);
+    const randomHotspot = hotspots.features[randomHotspotIndex];
+    const fireLocation = turf.pointOnFeature(randomHotspot).geometry.coordinates;
+
+    const el = document.createElement('div');
+    el.className = 'fire-marker';
+    el.innerHTML = '🔥';
+    fireMarker = new mapboxgl.Marker(el)
+      .setLngLat(fireLocation)
+      .addTo(map);
+
+    const fireTruckStart = getRandomFireTruckStart();
+
+    console.log(`Routing fire truck from a random location [${fireTruckStart}] to fire at [${fireLocation}]`);
+    
+    const route = await getRoute(fireTruckStart, fireLocation);
+
+    fireTruckLayerInstance.fireTrucks.forEach((ft, index) => {
+      if (index > 0) ft.visible = false;
+    });
+
+    fireTruckState.route = route;
+    fireTruckState.positionIndex = 0;
+    fireTruckState.currentPosition = [...route[0]];
+
+    map.getSource("route-line-source").setData({
+        type: "Feature",
+        geometry: {
+            type: "LineString",
+            coordinates: route
+        }
+    });
+
+    const animatedFireTruck = fireTruckLayerInstance.fireTrucks[0];
+    if (animatedFireTruck) {
+      animatedFireTruck.visible = true;
+      const initialCoords = mapboxgl.MercatorCoordinate.fromLngLat(fireTruckState.currentPosition, 0);
+      animatedFireTruck.position.x = initialCoords.x;
+      animatedFireTruck.position.y = initialCoords.y;
+      animatedFireTruck.position.z = initialCoords.z;
+      
+      const modelTransform = { scale: initialCoords.meterInMercatorCoordinateUnits() };
+      const customScale = 50;
+      animatedFireTruck.scale.set(
+          modelTransform.scale * customScale,
+          modelTransform.scale * customScale,
+          modelTransform.scale * customScale
+      );
+    }
+
+    fireTruckAnimationActive = true;
+    animateFireTruck();
+
+  } catch (err) {
+    console.error("Error running simulation:", err);
+  }
+}
+
+
+/**
+ * Simulates a fire call for a fire truck staged at a hotspot.
+ */
+async function simulateHotspotFire() {
+  if (fireTruckAnimationActive) {
+      fireTruckAnimationActive = false;
+      console.log("Fire truck simulation stopped.");
+      map.getSource("route-line-source").setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] } });
+      if(fireMarker) {
+        fireMarker.remove();
+        fireMarker = null;
+      }
+      return;
+  }
+  
+  try {
+    document.getElementById('fireSeverityBox').style.display = 'block';
+    fireSeverity = Math.floor(Math.random() * 5) + 1;
+    document.getElementById('fireSeverityDisplay').textContent = fireSeverity;
+    
+    const hotspots = await fetchHotspots();
+    if (!hotspots || hotspots.features.length === 0) {
+      console.error("No fire hotspots found to start the simulation.");
+      return;
+    }
+    
+    const randomHotspotIndex = Math.floor(Math.random() * hotspots.features.length);
+    const randomHotspot = hotspots.features[randomHotspotIndex];
+    const fireLocation = turf.pointOnFeature(randomHotspot).geometry.coordinates;
+
+    const el = document.createElement('div');
+    el.className = 'fire-marker';
+    el.innerHTML = '🔥';
+    fireMarker = new mapboxgl.Marker(el)
+      .setLngLat(fireLocation)
+      .addTo(map);
+
+    const fireTruckStart = fireLocation;
+    
+    console.log(`Routing fire truck from hotspot [${fireTruckStart}] to fire at [${fireLocation}]`);
+    
+    const route = await getRoute(fireTruckStart, fireLocation);
+    
+    fireTruckLayerInstance.fireTrucks.forEach((ft, index) => {
+      if (index > 0) ft.visible = false;
+    });
+
+    fireTruckState.route = route;
+    fireTruckState.positionIndex = 0;
+    fireTruckState.currentPosition = [...route[0]];
+
+    map.getSource("route-line-source").setData({
+        type: "Feature",
+        geometry: {
+            type: "LineString",
+            coordinates: route
+        }
+    });
+
+    const animatedFireTruck = fireTruckLayerInstance.fireTrucks[0];
+    if (animatedFireTruck) {
+      animatedFireTruck.visible = true;
+      const initialCoords = mapboxgl.MercatorCoordinate.fromLngLat(fireTruckState.currentPosition, 0);
+      animatedFireTruck.position.x = initialCoords.x;
+      animatedFireTruck.position.y = initialCoords.y;
+      animatedFireTruck.position.z = initialCoords.z;
+      
+      const modelTransform = { scale: initialCoords.meterInMercatorCoordinateUnits() };
+      const customScale = 50;
+      animatedFireTruck.scale.set(
+          modelTransform.scale * customScale,
+          modelTransform.scale * customScale,
+          modelTransform.scale * customScale
+      );
+    }
+
+    fireTruckAnimationActive = true;
+    animateFireTruck();
+
+  } catch (err) {
+    console.error("Error running simulation:", err);
+  }
+}
+
+
+map.on("load", () => {
+  map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+  map.addSource("route-line-source", {
+      type: "geojson",
+      data: { type: "Feature", geometry: { type: "LineString", coordinates: [] } }
+  });
+  map.addLayer({
+      id: "route-line",
+      type: "line",
+      source: "route-line-source",
+      paint: {
+          "line-color": "#ff4500",
+          "line-width": 4
+      }
+  });
+
+  try {
+    map.addLayer({
+      id: "3d-buildings",
+      source: "composite",
+      "source-layer": "building",
+      filter: ["==", "extrude", "true"],
+      type: "fill-extrusion",
+      minzoom: 13,
+      paint: {
+        "fill-extrusion-color": "#aaa",
+        "fill-extrusion-height": ["*", 1.2, ["get", "height"]],
+        "fill-extrusion-base": ["get", "min_height"],
+        "fill-extrusion-opacity": 0.6
+      }
+    });
+  } catch (e) {
+    console.warn("3D buildings not added:", e);
+  }
+  
+  const fireTruckLayer = {
+    id: "fire-truck-3d-model",
+    type: "custom",
+    renderingMode: "3d",
+    onAdd: function (map, gl) {
+      this.map = map;
+      this.camera = new THREE.Camera();
+      this.scene = new THREE.Scene();
+      this.fireTrucks = [];
+      fireTruckLayerInstance = this;
+
+      const loader = new THREE.GLTFLoader();
+      // Using ambulance model as a placeholder for a fire truck.
+      loader.load(
+        "../static/ambulance.glb",
+        (gltf) => {
+          const baseModel = gltf.scene;
+          
+          const fireStationLocations = [
+              [-76.60, 39.29],
+              [-76.62, 39.30],
+              [-76.58, 39.27],
+          ];
+
+          fireStationLocations.forEach(coords => {
+            const newModel = baseModel.clone();
+            newModel.rotation.x = -Math.PI / 2;
+            newModel.rotation.z = Math.PI;
+
+            const mercatorCoords = mapboxgl.MercatorCoordinate.fromLngLat(coords, 0);
+            newModel.position.x = mercatorCoords.x;
+            newModel.position.y = mercatorCoords.y;
+            newModel.position.z = mercatorCoords.z;
+
+            const modelTransform = { scale: mercatorCoords.meterInMercatorCoordinateUnits() };
+            const customScale = 100;
+            newModel.scale.set(
+              modelTransform.scale * customScale,
+              modelTransform.scale * customScale,
+              modelTransform.scale * customScale
+            );
+
+            this.fireTrucks.push(newModel);
+            this.scene.add(newModel);
+          });
+          this.map.triggerRepaint();
+        },
+        (xhr) => {},
+        (error) => {
+          console.error("An error happened while loading the 3D model:", error);
+        }
+      );
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+      this.scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 3.0);
+      directionalLight.position.set(0, -70, 100).normalize();
+      this.scene.add(directionalLight);
+      
+      this.renderer = new THREE.WebGLRenderer({
+        canvas: map.getCanvas(),
+        context: gl,
+        antialias: true
+      });
+      this.renderer.autoClear = false;
+    },
+    render: function (gl, matrix) {
+      const m = new THREE.Matrix4().fromArray(matrix);
+      this.camera.projectionMatrix.copy(m);
+      this.renderer.state.reset();
+      this.renderer.render(this.scene, this.camera);
+      this.map.triggerRepaint();
+    },
+    onRemove: function () {
+      this.renderer.dispose();
+    }
+  };
+  
+  map.addLayer(fireTruckLayer, "waterway-label");
+
+  document.getElementById('simulateFullFireCallBtn').addEventListener('click', simulateFullFireCall);
+  document.getElementById('simulateHotspotBtn').addEventListener('click', simulateHotspotFire);
+
+  fetch("/api/fires")
+    .then(res => res.json())
+    .then(data => {
+      // Logic for handling fire data
+      if (!map.getSource("fires")) {
+        map.addSource("fires", { type: "geojson", data });
+      } else {
+        map.getSource("fires").setData(data);
+      }
+
+      if (!map.getLayer("fire-heat")) {
+        map.addLayer({
+          id: "fire-heat",
+          type: "fill",
+          source: "fires",
+          paint: {
+            "fill-color": [
+              "interpolate",
+              ["linear"], ["get", "fire_count"],
+              0, "#ffb833", // Low severity
+              5, "#ff6600", // Medium severity
+              10, "#D7263D" // High severity
+            ],
+            "fill-opacity": 0.6
+          }
+        });
+      }
+
+      const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
+      map.on("mousemove", "fire-heat", (e) => {
+        if (!e.features || !e.features.length) return;
+        const feat = e.features[0];
+        const name = feat.properties.name || feat.properties.Name || "Area";
+        const count = feat.properties.fire_count || 0;
+        popup.setLngLat(e.lngLat).setHTML(`<strong>${name}</strong><br/>Fires (last 7d): ${count}`).addTo(map);
+      });
+      map.on("mouseleave", "fire-heat", () => popup.remove());
+
+      document.getElementById('toggleFireMapBtn').addEventListener('click', () => {
+        const vis = map.getLayoutProperty('fire-heat','visibility') || 'visible';
+        map.setLayoutProperty('fire-heat','visibility', vis === 'visible' ? 'none' : 'visible');
+      });
+    })
+    .catch(err => console.error("fires data load error:", err));
+
+  fetch("/api/fire_stations")
+    .then(res => res.json())
+    .then(data => {
+      fireStationData = data.features.map(feature => {
+        const coords = feature.geometry && feature.geometry.coordinates;
+        const props = feature.properties || {};
+        const name = props.name || props.NAME || props.Name || "Fire Station";
+        const address = props.address || props.ADDRESS || "";
+        
+        const el = document.createElement("div");
+        el.className = "fire-station-marker";
+        el.innerHTML = "🚒";
+
+        const popupHtml = `<strong>${name}</strong><br/>
+          ${address}`;
+        
+        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(popupHtml);
+
+        const marker = new mapboxgl.Marker({ element: el })
+          .setLngLat(coords)
+          .setPopup(popup)
+          .addTo(map);
+
+        return { marker, coords, name, address };
+      });
+
+      document.getElementById('toggleFireStationsBtn').addEventListener('click', () => {
+        fireStationsVisible = !fireStationsVisible;
+        fireStationData.forEach(h => fireStationsVisible ? h.marker.addTo(map) : h.marker.remove());
+      });
+    })
+    .catch(err => console.error("fire stations load error:", err));
+
+  try {
+    if (!map.getSource("traffic")) {
+      map.addSource("traffic", { type: "vector", url: "mapbox://mapbox.mapbox-traffic-v1" });
+    }
+    if (!map.getLayer("traffic")) {
+      map.addLayer({
+        id: "traffic",
+        type: "line",
+        source: "traffic",
+        "source-layer": "traffic",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": [
+            "case",
+            ["==", ["get", "congestion"], "low"], "#2DC937",
+            ["==", ["get", "congestion"], "moderate"], "#FFCC00",
+            ["==", ["get", "congestion"], "heavy"], "#FF6600",
+            ["==", ["get", "congestion"], "severe"], "#D7263D",
+            "#999"
+          ],
+          "line-width": 2
+        }
+      });
+    }
+  } catch (e) {
+    console.warn("Traffic layer not available:", e);
+  }
+
+  document.getElementById('toggleTrafficBtn').addEventListener('click', () => {
+    const vis = map.getLayoutProperty('traffic','visibility') || 'visible';
+    map.setLayoutProperty('traffic','visibility', vis === 'visible' ? 'none' : 'visible');
+  });
+
+  document.getElementById('toggleHotspotsBtn').addEventListener('click', async () => {
+    const hotspots = await fetchHotspots();
+    if (!hotspots) return;
+
+    if (!hotspotsAdded) {
+      if (!map.getSource("fire-hexes")) {
+        map.addSource("fire-hexes", { type: "geojson", data: hotspots });
+      } else {
+        map.getSource("fire-hexes").setData(hotspots);
+      }
+
+      if (!map.getLayer("fire-hex-layer")) {
+        map.addLayer({
+          id: "fire-hex-layer",
+          type: "fill-extrusion",
+          source: "fire-hexes",
+          layout: { visibility: "none" },
+          paint: {
+            "fill-extrusion-color": "#D7263D", 
+            "fill-extrusion-height": ["*", 10, ["get", "count"]],
+            "fill-extrusion-opacity": 0.55
+          }
+        });
+        
+        const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
+        map.on("mousemove", "fire-hex-layer", (e) => {
+          if (!e.features || !e.features.length) return;
+          const feat = e.features[0];
+          const count = feat.properties.count || 0;
+          popup.setLngLat(e.lngLat).setHTML(`<strong>Fires in Hex:</strong> ${count}`).addTo(map);
+        });
+        map.on("mouseleave", "fire-hex-layer", () => popup.remove());
+      }
+      hotspotsAdded = true;
+    }
+
+    if (map.getLayer("fire-hex-layer")) {
+      const vis = map.getLayoutProperty("fire-hex-layer", "visibility") || "none";
+      const newVis = (vis === "visible") ? "none" : "visible";
+      map.setLayoutProperty("fire-hex-layer", "visibility", newVis);
+    }
+  });
+});
+</script>
+</body>
+</html>
