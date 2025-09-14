@@ -15,6 +15,33 @@
       overflow: hidden;
       background-color: #111;
     }
+    #back-button-container {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 3;
+    }
+    #backBtn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: rgba(240, 240, 240, 0.8);
+      border: none;
+      font-size: 24px;
+      font-weight: bold;
+      color: #333;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      transition: background-color 0.2s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding-bottom: 2px;
+    }
+    #backBtn:hover {
+      background-color: rgba(240, 240, 240, 0.9);
+      transform: scale(1.05);
+    }
     #map { 
       position: absolute; 
       top: 0; 
@@ -157,6 +184,9 @@
 <body>
 
   <div id="map"></div>
+  <div id="back-button-container">
+    <button id="backBtn"><</button>
+  </div>
   <div id="tooltip" class="tooltip"></div>
 
   <div class="controls">
@@ -238,6 +268,7 @@ function createHexGrid(bbox, cellWidth, units) {
   return { type: 'FeatureCollection', features: features };
 }
 
+
 // Function to generate initial hexagon grid and simulate crime data
 function generateInitialData() {
   const bbox = [-76.711, 39.206, -76.518, 39.372]; // Bounding box for Baltimore
@@ -251,6 +282,10 @@ function generateInitialData() {
     const lon = bbox[0] + (Math.random() * (bbox[2] - bbox[0]));
     points.push([lon, lat]);
   }
+
+  document.getElementById('backBtn').addEventListener('click', () => {
+    window.history.back();
+  });
 
   // Assign a count to each hexagon based on how many points it contains
   hexGrid.features.forEach(hex => {
