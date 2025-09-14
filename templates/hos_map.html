@@ -137,6 +137,60 @@
         border: 2px solid white;
         box-shadow: 0 0 5px rgba(0,0,0,0.5);
     }
+
+    /* Switch styles */
+    .switch-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .switch-text {
+      font-weight: bold;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 28px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 28px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #2196F3;
+    }
+    input:focus + .slider {
+      box-shadow: 0 0 1px #2196F3;
+    }
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
   </style>
 </head>
 <body>
@@ -147,10 +201,37 @@
 </div>
 
 <div class="controls">
-  <button id="toggleCrimeBtn">Toggle Crime Map</button>
-  <button id="toggleTrafficBtn">Toggle Traffic</button>
-  <button id="toggleHospitalsBtn">Toggle Hospitals</button>
-  <button id="toggleHotspotsBtn">Toggle Hotspots</button>
+  <!-- Switches for toggles -->
+  <div class="switch-container">
+    <span class="switch-text">Crime Map</span>
+    <label class="switch">
+      <input type="checkbox" id="toggleCrimeBtn">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="switch-container">
+    <span class="switch-text">Traffic</span>
+    <label class="switch">
+      <input type="checkbox" id="toggleTrafficBtn">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="switch-container">
+    <span class="switch-text">Hospitals</span>
+    <label class="switch">
+      <input type="checkbox" id="toggleHospitalsBtn">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="switch-container">
+    <span class="switch-text">Hotspots</span>
+    <label class="switch">
+      <input type="checkbox" id="toggleHotspotsBtn">
+      <span class="slider"></span>
+    </label>
+  </div>
+  
+  <!-- Buttons for simulations -->
   <button id="simulateFull911CallBtn">Simulate Full 911 Call</button>
   <button id="simulateHotspotBtn">Simulate from Hotspot</button>
 </div>
@@ -427,37 +508,17 @@ async function simulateFull911Call() {
   }
   
   // Turn on hotspots if they are off
-  if (!hotspotsVisible) {
-      const hotspots = await fetchHotspots();
-      if (hotspots) {
-          if (!hotspotsAdded) {
-              if (!map.getSource("crime-hexes")) {
-                  map.addSource("crime-hexes", { type: "geojson", data: hotspots });
-              }
-              if (!map.getLayer("crime-hex-layer")) {
-                  map.addLayer({
-                      id: "crime-hex-layer",
-                      type: "fill-extrusion",
-                      source: "crime-hexes",
-                      layout: { visibility: "none" },
-                      paint: {
-                          "fill-extrusion-color": "#D7263D", 
-                          "fill-extrusion-height": ["*", 10, ["get", "count"]],
-                          "fill-extrusion-opacity": 0.55
-                      }
-                  });
-              }
-              hotspotsAdded = true;
-          }
-          map.setLayoutProperty("crime-hex-layer", "visibility", "visible");
-          hotspotsVisible = true;
-      }
+  const hotspotsCheckbox = document.getElementById('toggleHotspotsBtn');
+  if (!hotspotsCheckbox.checked) {
+      hotspotsCheckbox.checked = true;
+      hotspotsCheckbox.dispatchEvent(new Event('change'));
   }
 
   // Turn on hospitals if they are off
-  if (!hospitalsVisible) {
-      hospitalData.forEach(h => h.marker.addTo(map));
-      hospitalsVisible = true;
+  const hospitalsCheckbox = document.getElementById('toggleHospitalsBtn');
+  if (!hospitalsCheckbox.checked) {
+      hospitalsCheckbox.checked = true;
+      hospitalsCheckbox.dispatchEvent(new Event('change'));
   }
 
   try {
@@ -554,37 +615,17 @@ async function simulateHotspotAmbulance() {
   }
   
   // Turn on hotspots if they are off
-  if (!hotspotsVisible) {
-      const hotspots = await fetchHotspots();
-      if (hotspots) {
-          if (!hotspotsAdded) {
-              if (!map.getSource("crime-hexes")) {
-                  map.addSource("crime-hexes", { type: "geojson", data: hotspots });
-              }
-              if (!map.getLayer("crime-hex-layer")) {
-                  map.addLayer({
-                      id: "crime-hex-layer",
-                      type: "fill-extrusion",
-                      source: "crime-hexes",
-                      layout: { visibility: "none" },
-                      paint: {
-                          "fill-extrusion-color": "#D7263D", 
-                          "fill-extrusion-height": ["*", 10, ["get", "count"]],
-                          "fill-extrusion-opacity": 0.55
-                      }
-                  });
-              }
-              hotspotsAdded = true;
-          }
-          map.setLayoutProperty("crime-hex-layer", "visibility", "visible");
-          hotspotsVisible = true;
-      }
+  const hotspotsCheckbox = document.getElementById('toggleHotspotsBtn');
+  if (!hotspotsCheckbox.checked) {
+      hotspotsCheckbox.checked = true;
+      hotspotsCheckbox.dispatchEvent(new Event('change'));
   }
 
   // Turn on hospitals if they are off
-  if (!hospitalsVisible) {
-      hospitalData.forEach(h => h.marker.addTo(map));
-      hospitalsVisible = true;
+  const hospitalsCheckbox = document.getElementById('toggleHospitalsBtn');
+  if (!hospitalsCheckbox.checked) {
+      hospitalsCheckbox.checked = true;
+      hospitalsCheckbox.dispatchEvent(new Event('change'));
   }
 
   try {
@@ -827,10 +868,10 @@ map.on("load", () => {
       });
       map.on("mouseleave", "crime-heat", () => popup.remove());
 
-      document.getElementById('toggleCrimeBtn').addEventListener('click', () => {
-        const vis = map.getLayoutProperty('crime-heat','visibility') || 'visible';
-        map.setLayoutProperty('crime-heat','visibility', vis === 'visible' ? 'none' : 'visible');
-        map.setLayoutProperty('neighborhood-borders','visibility', vis === 'visible' ? 'none' : 'visible');
+      document.getElementById('toggleCrimeBtn').addEventListener('change', (e) => {
+        const visibility = e.target.checked ? 'visible' : 'none';
+        map.setLayoutProperty('crime-heat','visibility', visibility);
+        map.setLayoutProperty('neighborhood-borders','visibility', visibility);
       });
     })
     .catch(err => console.error("neighborhoods load error:", err));
@@ -870,8 +911,8 @@ map.on("load", () => {
       setInterval(updateHospitalOccupancy, 60000);
       setInterval(updateTimerDisplay, 1000);
 
-      document.getElementById('toggleHospitalsBtn').addEventListener('click', () => {
-        hospitalsVisible = !hospitalsVisible;
+      document.getElementById('toggleHospitalsBtn').addEventListener('change', (e) => {
+        hospitalsVisible = e.target.checked;
         hospitalData.forEach(h => hospitalsVisible ? h.marker.addTo(map) : h.marker.remove());
       });
     })
@@ -905,12 +946,12 @@ map.on("load", () => {
     console.warn("Traffic layer not available:", e);
   }
 
-  document.getElementById('toggleTrafficBtn').addEventListener('click', () => {
-    const vis = map.getLayoutProperty('traffic','visibility') || 'visible';
-    map.setLayoutProperty('traffic','visibility', vis === 'visible' ? 'none' : 'visible');
+  document.getElementById('toggleTrafficBtn').addEventListener('change', (e) => {
+    const visibility = e.target.checked ? 'visible' : 'none';
+    map.setLayoutProperty('traffic','visibility', visibility);
   });
 
-  document.getElementById('toggleHotspotsBtn').addEventListener('click', async () => {
+  document.getElementById('toggleHotspotsBtn').addEventListener('change', async (e) => {
     const hotspots = await fetchHotspots();
     if (!hotspots) return;
 
@@ -945,13 +986,9 @@ map.on("load", () => {
       }
       hotspotsAdded = true;
     }
-
-    if (map.getLayer("crime-hex-layer")) {
-      const vis = map.getLayoutProperty("crime-hex-layer", "visibility") || "none";
-      const newVis = (vis === "visible") ? "none" : "visible";
-      map.setLayoutProperty("crime-hex-layer", "visibility", newVis);
-      hotspotsVisible = (newVis === 'visible');
-    }
+    const visibility = e.target.checked ? 'visible' : 'none';
+    map.setLayoutProperty("crime-hex-layer", "visibility", visibility);
+    hotspotsVisible = (visibility === 'visible');
   });
 });
 </script>
