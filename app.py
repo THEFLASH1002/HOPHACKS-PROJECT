@@ -135,7 +135,11 @@ def home():
 
 @app.route("/map")
 def map_page():
-    return render_template("map.html")
+    return render_template("hos_map.html")
+
+@app.route("/timelapse")
+def timelapse():
+    return render_template("timelapse.html")
 
 @app.route("/dash")
 def dash():
