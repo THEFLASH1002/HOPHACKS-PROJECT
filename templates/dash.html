@@ -107,9 +107,6 @@
                     <button class="px-4 py-2 bg-gray-700 rounded-md font-medium hover:bg-gray-600 transition" onclick="showDashboard('fire')">
                         🚒 Fire
                     </button>
-                    <a href="{{ url_for('map_page') }}" class="px-4 py-2 bg-gray-700 rounded-md font-medium hover:bg-gray-600 transition" onclick="showDashboard('map')">
-                        📍 Map
-                    </a>
                     <a href="{{ url_for('timelapse') }}" class="px-4 py-2 bg-gray-700 rounded-md font-medium hover:bg-gray-600 transition" onclick="showDashboard('timelapse')">
                         ⏳  Timelapse
                     </a>
@@ -127,7 +124,7 @@
                 <span class="ml-4 text-sm opacity-90">Network operating at standard capacity</span>
             </div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-6 mt-8">
             <div class="card bg-gray-800 p-6 rounded-xl shadow-lg flex flex-col items-center text-center" onclick="showDashboard('ems')">
                 <span class="text-5xl mb-4">🚑</span>
                 <h2 class="text-2xl font-bold text-white">EMS Dashboard</h2>
@@ -135,6 +132,9 @@
                 <div class="mt-4 text-sm font-medium text-green-400">
                     <span id="ems-status">Status: Normal</span>
                 </div>
+                <a href="{{ url_for('map_page') }}" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                    View Map
+                </a>
             </div>
             <div class="card bg-gray-800 p-6 rounded-xl shadow-lg flex flex-col items-center text-center" onclick="showDashboard('police')">
                 <span class="text-5xl mb-4">🚓</span>
@@ -143,6 +143,9 @@
                 <div class="mt-4 text-sm font-medium text-green-400">
                     <span id="police-status">Status: Normal</span>
                 </div>
+                <a href="{{ url_for('cop') }}" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                    View Map
+                </a>
             </div>
             <div class="card bg-gray-800 p-6 rounded-xl shadow-lg flex flex-col items-center text-center" onclick="showDashboard('fire')">
                 <span class="text-5xl mb-4">🚒</span>
@@ -151,6 +154,9 @@
                 <div class="mt-4 text-sm font-medium text-green-400">
                     <span id="fire-status">Status: Normal</span>
                 </div>
+                <a href="{{ url_for('firemap') }}" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                    View Map
+                </a>
             </div>
         </div>
     </div>

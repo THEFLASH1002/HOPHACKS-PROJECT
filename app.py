@@ -145,6 +145,13 @@ def timelapse():
 def dash():
     return render_template("dash.html")
 
+@app.route("/firemap")
+def firemap():
+    return render_template("fire_map.html")
+
+@app.route("/cop")
+def cop():
+    return render_template("cop_map.html")
 
 # =========================
 # Run the App
